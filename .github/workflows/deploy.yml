@@ -1,0 +1,63 @@
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ap-northeast-2
+  EKS_CLUSTER_NAME: chatting_alarm-eks
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: registry
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend
+        env:
+          REGISTRY: ${{ steps.registry.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t "$REGISTRY/chatting_alarm-backend:$IMAGE_TAG" backend
+          docker push "$REGISTRY/chatting_alarm-backend:$IMAGE_TAG"
+
+      - name: Build and push frontend
+        env:
+          REGISTRY: ${{ steps.registry.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --build-arg VITE_API_BASE_URL=https://api.chatting-alarm.p-e.kr \
+            -t "$REGISTRY/chatting_alarm-frontend:$IMAGE_TAG" frontend
+          docker push "$REGISTRY/chatting_alarm-frontend:$IMAGE_TAG"
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Configure Kubernetes access
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Deploy application images
+        env:
+          REGISTRY: ${{ steps.registry.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          kubectl -n chatting-alarm set image deployment/chatting-alarm-backend \
+            backend="$REGISTRY/chatting_alarm-backend:$IMAGE_TAG"
+          kubectl -n chatting-alarm set image deployment/chatting-alarm-frontend \
+            frontend="$REGISTRY/chatting_alarm-frontend:$IMAGE_TAG"
+          kubectl -n chatting-alarm rollout status deployment/chatting-alarm-backend --timeout=5m
+          kubectl -n chatting-alarm rollout status deployment/chatting-alarm-frontend --timeout=5m

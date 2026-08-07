@@ -1,0 +1,64 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_container
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: chatting-alarm
+      MYSQL_USER: chat_user
+      MYSQL_PASSWORD: chatmysql1357!
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile : Dockerfile
+    container_name: chatting_alarm-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chatting_alarm?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+      SPRING_DATASOURCE_USERNAME: chat_user
+      SPRING_DATASOURCE_PASSWORD: chatmysql1357!
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      APP_FRONTEND_ORIGIN: http://localhost:3000
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-not-configured}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-not-configured}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-not-configured}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-not-configured}
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-not-configured}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-not-configured}
+      APP_PROFILE_UPLOAD_DIR: /data/profile-images
+      APP_ATTACHMENT_UPLOAD_DIR: /data/chat-attachments
+    ports:
+      - "8000:8080"
+    volumes:
+      - profile_images:/data/profile-images
+      - chat_attachments:/data/chat-attachments
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+    
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+    container_name: chatting_alarm-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  profile_images:
+  chat_attachments:

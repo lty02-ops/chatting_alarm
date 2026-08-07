@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatting-alarm-config
+  namespace: chatting-alarm
+data:
+  SPRING_PROFILES_ACTIVE: prod
+  AWS_REGION: ${AWS_REGION}
+  SERVER_PORT: "8080"
+  SPRING_DATASOURCE_URL: jdbc:mysql://${RDS_ENDPOINT}:3306/chatting_alarm
+  SPRING_JPA_HIBERNATE_DDL_AUTO: update
+  APP_FRONTEND_ORIGIN: https://app.chatting-alarm.p-e.kr
+  APP_STORAGE_BUCKET: ${S3_BUCKET_NAME}
+  APP_REDIS_ENABLED: "true"
+  SPRING_DATA_REDIS_HOST: ${REDIS_PRIMARY_ENDPOINT}
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_DATA_REDIS_SSL_ENABLED: "true"

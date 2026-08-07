@@ -1,0 +1,12 @@
+.env
+.git-backups/
+backend/target/
+frontend/node_modules/
+frontend/dist/
+/chatting/
+.github/modernize/
+backend-secrets.json
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan

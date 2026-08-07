@@ -1,0 +1,6 @@
+region            = "ap-northeast-2"
+environment       = "dev"
+db_username       = "chat_user"
+bucket_suffix     = "replace-with-a-unique-suffix"
+alert_email       = null
+github_repository = "owner/repository"
