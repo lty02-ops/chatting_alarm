@@ -10,3 +10,4 @@ backend-secrets.json
 *.tfstate
 *.tfstate.*
 *.tfplan
+terraform.tfvars
