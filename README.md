@@ -4,8 +4,6 @@ Spring Boot와 React로 만든 실시간 채팅 서비스입니다.
 
 로컬에서는 Docker Compose로 실행하고, 운영 환경은 Terraform과 Kubernetes 매니페스트로 구성했습니다.
 
-[![Build and deploy](https://github.com/lty02-ops/chatting_alarm/actions/workflows/deploy.yml/badge.svg)](https://github.com/lty02-ops/chatting_alarm/actions/workflows/deploy.yml)
-
 ## 주요 기능
 
 - Google, Naver, Kakao 소셜 로그인
@@ -126,7 +124,7 @@ docker compose down -v
 
 ## AWS 배포
 
-> EKS, NAT Gateway, ALB, RDS Multi-AZ, ElastiCache 등은 실행 시간 동안 비용이 발생합니다.
+EKS, NAT Gateway, ALB, RDS Multi-AZ, ElastiCache 등은 실행 시간 동안 비용이 발생합니다.
 
 ### Terraform
 
@@ -258,7 +256,7 @@ S3 권한과 IRSA Role은 정상인데 EKS에서만 파일 첨부가 실패했�
 
 ### 새 Pod가 Pending 상태에서 멈춘 문제
 
-두 개의 `t3.small` 노드에서 RollingUpdate를 실행할 때 기존 Pod와 새 Pod를 동시에 배치할 공간이 부족했습니다. 노드를 `t3.medium`으로 조정하고 프런트엔드 Deployment의 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 바꿨습니다. 새 Pod를 무조건 먼저 추가하지 않고 기존 Pod 하나를 내린 뒤 교체하도록 한 것입니다.
+두 개의 `t3.small` 노드에서 RollingUpdate를 실행할 때 기존 Pod와 새 Pod를 동시에 배치할 공간이 부족했습니다. 노드를 `t3.medium`으로 조정하고 프런트엔드 Deployment의 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 바꿨습니다. 새 Pod를 무조건 먼저 추가하지 않고 기존 Pod 하나를 내린 뒤 교체하도록 했습니다.
 
 ## 아쉬운 점
 
