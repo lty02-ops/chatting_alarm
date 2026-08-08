@@ -51,3 +51,51 @@ resource "aws_cloudwatch_metric_alarm" "redis_cpu" {
     ReplicationGroupId = aws_elasticache_replication_group.chatting_alarm.replication_group_id
   }
 }
+
+resource "aws_cloudwatch_metric_alarm" "rds_free_storage" {
+  alarm_name          = "chatting-alarm-${var.environment}-rds-low-storage"
+  namespace           = "AWS/RDS"
+  metric_name         = "FreeStorageSpace"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 5368709120 # 5GB
+  comparison_operator = "LessThanThreshold"
+  alarm_actions       = [aws_sns_topic.infrastructure_alerts.arn]
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.chatting_alarm_db.identifier
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "redis_free_memory" {
+  alarm_name          = "chatting-alarm-${var.environment}-redis-low-memory"
+  namespace           = "AWS/ElastiCache"
+  metric_name         = "FreeableMemory"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 104857600 # 100MB
+  comparison_operator = "LessThanThreshold"
+  alarm_actions       = [aws_sns_topic.infrastructure_alerts.arn]
+
+  dimensions = {
+    ReplicationGroupId = aws_elasticache_replication_group.chatting_alarm.replication_group_id
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "redis_connections" {
+  alarm_name          = "chatting-alarm-${var.environment}-redis-high-connections"
+  namespace           = "AWS/ElastiCache"
+  metric_name         = "CurrConnections"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 500
+  comparison_operator = "GreaterThanThreshold"
+  alarm_actions       = [aws_sns_topic.infrastructure_alerts.arn]
+
+  dimensions = {
+    ReplicationGroupId = aws_elasticache_replication_group.chatting_alarm.replication_group_id
+  }
+}
