@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -26,7 +27,18 @@ public class SecurityConfig {
                         .anyRequest().permitAll())
                 .oauth2Login(oauth -> oauth
                         .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
-                        .defaultSuccessUrl(frontendOrigin + "/?login=success", true))
+                        .successHandler((request, response, authentication) -> {
+                            if (authentication.getPrincipal() instanceof OAuth2User principal) {
+                                Object internalUserId = principal.getAttribute("internalUserId");
+                                if (internalUserId != null) {
+                                    request.getSession().setAttribute(
+                                            "userId",
+                                            Long.valueOf(String.valueOf(internalUserId))
+                                    );
+                                }
+                            }
+                            response.sendRedirect(frontendOrigin + "/?login=success");
+                        }))
                 .logout(logout -> logout
                         .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204))
                         .invalidateHttpSession(true)

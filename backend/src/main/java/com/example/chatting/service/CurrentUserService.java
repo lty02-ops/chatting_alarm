@@ -19,9 +19,16 @@ public class CurrentUserService {
     private final SecureRandom random = new SecureRandom();
 
     public AppUser require(OAuth2User principal, HttpSession session) {
-        Long id = principal != null
-                ? Long.valueOf(String.valueOf(principal.getAttribute("internalUserId")))
-                : (Long) session.getAttribute("userId");
+        Long id = null;
+        if (principal != null) {
+            Object internalUserId = principal.getAttribute("internalUserId");
+            if (internalUserId != null) {
+                id = Long.valueOf(String.valueOf(internalUserId));
+            }
+        }
+        if (id == null) {
+            id = (Long) session.getAttribute("userId");
+        }
         if (id == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         return userRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }

@@ -65,7 +65,8 @@ body { background: radial-gradient(circle at 85% 10%, #f4d9ff 0, transparent 30%
 .messenger-shell { width: min(1420px, calc(100% - 48px)); height: min(820px, calc(100dvh - 48px)); min-height: 0; margin: 24px auto; display: grid; grid-template-columns: 190px 260px minmax(360px, 1fr) 250px; overflow: hidden; border: 1px solid #d8dde6; border-radius: 22px; background: #fff; box-shadow: 0 28px 80px rgba(30, 35, 48, .2); }
 .profile-rail { display: flex; flex-direction: column; min-width: 0; padding: 28px 20px 20px; background: #202532; color: #fff; }
 .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 42px; color: #37c8ed; font-size: 22px; }
-.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: linear-gradient(135deg, #26c6da, #3b82f6); color: #fff; font-size: 18px; }
+.brand-mark { display: grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 11px; background: linear-gradient(135deg, #26c6da, #3b82f6); color: #fff; font-size: 18px; }
+.brand-mark:hover { filter: brightness(1.1); transform: translateY(-1px); }
 .profile-block { display: flex; align-items: center; gap: 11px; padding-bottom: 24px; border-bottom: 1px solid #333947; }
 .avatar, .message-avatar { display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #22d3ee); color: #fff; font-weight: 800; }
 .avatar { width: 44px; height: 44px; font-size: 18px; }
@@ -125,9 +126,18 @@ body { background: radial-gradient(circle at 85% 10%, #f4d9ff 0, transparent 30%
 .conversation-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 24px; border-bottom: 1px solid #e8ebf0; background: #fff; }
 .conversation-header h2 { margin: 0; color: #202532; }
 .conversation-header p { margin: 4px 0 0; font-size: 12px; }
+.room-invite-button { flex: 0 0 auto; padding: 8px 13px; border: 1px solid #c7d2fe; background: #eef2ff; color: #4f46e5; font-size: 12px; }
+.room-invite-button:hover { background: #e0e7ff; }
 .conversation-actions { display: flex; align-items: center; gap: 8px; }
 .icon-action { padding: 10px 12px; background: #f3f5f8; color: #485265; }
 .member-strip { display: flex; justify-content: space-between; gap: 12px; padding: 9px 24px; border-bottom: 1px solid #eceff4; background: #fff; color: #7b8493; font-size: 12px; }
+.room-member-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.room-member-list > strong { margin-right: 2px; color: #64748b; }
+.room-member-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #475569; }
+.room-member-chip > i { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; }
+.room-member-chip > i.online { background: #22c55e; }
+.room-member-chip button { padding: 3px 6px; border-radius: 999px; background: #eef2ff; color: #4f46e5; font-size: 9px; }
+.room-member-chip button:disabled { cursor: default; background: #f1f5f9; color: #94a3b8; }
 .conversation .messages { min-height: 0; height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; background: #f9fafc; }
 .conversation .message { display: flex; gap: 9px; max-width: 78%; }
 .conversation .message-avatar { width: 34px; height: 34px; margin-top: 17px; font-size: 12px; }
@@ -170,6 +180,17 @@ body { background: radial-gradient(circle at 85% 10%, #f4d9ff 0, transparent 30%
 .my-code-card small { grid-column: 1 / -1; color: #8993a4; font-size: 10px; }
 .my-code-card strong { color: #58d4f3; letter-spacing: .08em; }
 .friend-rail .friend-add-form { margin-bottom: 4px; }
+.friend-notice { margin: 5px 0 8px; padding: 9px 10px; border: 1px solid #315767; border-radius: 9px; background: #1d3540; color: #8de4f8; font-size: 11px; line-height: 1.45; }
+.friend-request-section { margin: 6px 0 4px; padding-bottom: 10px; border-bottom: 1px solid #303642; }
+.friend-request-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; color: #dce3ee; font-size: 11px; }
+.friend-request-title span { display: grid; place-items: center; min-width: 20px; height: 20px; border-radius: 10px; background: #3b4352; color: #aeb7c8; font-size: 10px; }
+.friend-request-list { display: grid; gap: 6px; max-height: 170px; overflow-y: auto; }
+.friend-request-item { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 4px 8px; align-items: center; padding: 8px; border-radius: 10px; background: #292f3b; }
+.friend-request-item .mini-avatar { grid-row: 1 / 3; width: 32px; height: 32px; }
+.friend-request-item > strong { min-width: 0; overflow: hidden; color: #eef2f8; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.friend-request-item > div { display: flex; gap: 5px; }
+.friend-request-item button { padding: 4px 8px; border-radius: 6px; background: #22a9ca; color: #fff; font-size: 10px; }
+.friend-request-item button.reject { background: #3a4251; color: #c7cfda; }
 .right-list { max-height: 290px; margin-top: 10px; }
 .right-list .friend-item { grid-template-columns: 38px minmax(0, 1fr) auto; padding: 9px 7px; }
 .right-list .friend-item b { color: #64748b; font-size: 18px; }
@@ -227,6 +248,9 @@ body { background: radial-gradient(circle at 85% 10%, #f4d9ff 0, transparent 30%
 :root[data-theme='dark'] .member-strip,
 :root[data-theme='dark'] .conversation .composer { border-color: #303746; background: #202632; }
 :root[data-theme='dark'] .conversation-header h2 { color: #f8fafc; }
+:root[data-theme='dark'] .room-member-chip { border-color: #3b4556; background: #242b37; color: #dbe4ef; }
+:root[data-theme='dark'] .room-member-chip button { background: #343c59; color: #c7d2fe; }
+:root[data-theme='dark'] .room-invite-button { border-color: #4f5870; background: #30384b; color: #c7d2fe; }
 :root[data-theme='dark'] .conversation .message p { background: #2b3341; color: #f1f5f9; }
 :root[data-theme='dark'] .conversation .message.mine p { background: #1100f5; }
 :root[data-theme='dark'] .chat-file,

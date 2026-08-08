@@ -3,6 +3,7 @@ package com.example.chatting.controller;
 import com.example.chatting.entity.ChatRoom;
 import com.example.chatting.entity.ChatMessageEntity;
 import com.example.chatting.entity.AppUser;
+import com.example.chatting.entity.Friendship;
 import com.example.chatting.dto.ChatMessage;
 import com.example.chatting.repository.AppUserRepository;
 import com.example.chatting.repository.FriendshipRepository;
@@ -32,6 +33,7 @@ public class ChatRoomController {
 
     public record RoomSummary(String roomId, String name, long currentParticipants, int maxParticipants, String roomType, String profileImageUrl) {}
     public record GroupRoomRequest(String name, List<Long> friendIds) {}
+    public record InviteMembersRequest(List<Long> friendIds) {}
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatService chatService;
@@ -80,7 +82,7 @@ public class ChatRoomController {
         if (ids.stream().anyMatch(id -> !areFriends(me.getId(), id))) return ResponseEntity.status(403).build();
         List<AppUser> invited = userRepository.findAllById(ids);
         if (invited.size() != ids.size()) return ResponseEntity.badRequest().build();
-        ChatRoom room = chatRoomRepository.save(ChatRoom.group(request.name().trim(), invited.size() + 1, me.getId()));
+        ChatRoom room = chatRoomRepository.save(ChatRoom.group(request.name().trim(), Math.max(10, invited.size() + 1), me.getId()));
         chatService.registerMemberIfFirstTime(room.getRoomId(), me.getNickname());
         invited.forEach(friend -> chatService.registerMemberIfFirstTime(room.getRoomId(), friend.getNickname()));
 
@@ -92,6 +94,83 @@ public class ChatRoomController {
         inviteMessage.setTimestamp(LocalDateTime.now());
         chatService.saveMessage(inviteMessage);
         return ResponseEntity.status(201).body(summary(room, me.getNickname()));
+    }
+
+    @PostMapping("/room/{roomId}/invite")
+    public ResponseEntity<?> inviteMembers(@PathVariable String roomId,
+                                            @RequestBody InviteMembersRequest request,
+                                            @AuthenticationPrincipal OAuth2User principal,
+                                            HttpSession session) {
+        AppUser me = currentUserService.require(principal, session);
+        ChatRoom room = chatRoomRepository.findById(roomId).orElse(null);
+        if (room == null) return ResponseEntity.notFound().build();
+        if (!"GROUP".equals(room.getRoomType()) || !chatService.isMember(roomId, me.getNickname())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        List<Long> ids = request.friendIds() == null ? List.of() : request.friendIds().stream().distinct().toList();
+        if (ids.isEmpty()) return ResponseEntity.badRequest().build();
+        if (ids.stream().anyMatch(id -> !areFriends(me.getId(), id))) return ResponseEntity.status(403).build();
+
+        List<AppUser> invited = userRepository.findAllById(ids).stream()
+                .filter(friend -> !chatService.isMember(roomId, friend.getNickname()))
+                .toList();
+        if (invited.isEmpty()) {
+            return ResponseEntity.status(409).body(Map.of("message", "이미 채팅방에 참여 중인 친구입니다."));
+        }
+
+        long requiredCapacity = chatService.getMemberCount(roomId) + invited.size();
+        if (requiredCapacity > room.getMaxParticipants()) {
+            room.setMaxParticipants((int) requiredCapacity);
+            chatRoomRepository.save(room);
+        }
+        invited.forEach(friend -> chatService.registerMemberIfFirstTime(roomId, friend.getNickname()));
+
+        ChatMessage inviteMessage = new ChatMessage();
+        inviteMessage.setRoomId(roomId);
+        inviteMessage.setSender(me.getNickname());
+        inviteMessage.setType(ChatMessage.MessageType.INVITE);
+        inviteMessage.setContent(me.getNickname() + "님이 "
+                + invited.stream().map(AppUser::getNickname).collect(java.util.stream.Collectors.joining(", "))
+                + "님을 초대했습니다.");
+        inviteMessage.setTimestamp(LocalDateTime.now());
+        chatService.saveMessage(inviteMessage);
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, inviteMessage);
+
+        return ResponseEntity.ok(Map.of(
+                "invitedCount", invited.size(),
+                "memberCount", chatService.getMemberCount(roomId)));
+    }
+
+    @PostMapping("/room/{roomId}/friend-requests/{targetNickname}")
+    public ResponseEntity<?> requestFriendFromRoom(@PathVariable String roomId,
+                                                    @PathVariable String targetNickname,
+                                                    @AuthenticationPrincipal OAuth2User principal,
+                                                    HttpSession session) {
+        AppUser me = currentUserService.require(principal, session);
+        AppUser target = userRepository.findByNickname(targetNickname).orElse(null);
+        if (target == null || me.getId().equals(target.getId())) return ResponseEntity.badRequest().build();
+        if (!chatService.isMember(roomId, me.getNickname()) || !chatService.isMember(roomId, targetNickname)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        long a = Math.min(me.getId(), target.getId());
+        long b = Math.max(me.getId(), target.getId());
+        var existing = friendshipRepository.findByUserAIdAndUserBId(a, b);
+        if (existing.isPresent()) {
+            String message = "ACCEPTED".equals(existing.get().getStatus())
+                    ? "이미 친구로 등록된 사용자입니다."
+                    : "이미 처리 대기 중인 친구 요청이 있습니다.";
+            return ResponseEntity.status(409).body(Map.of("message", message));
+        }
+
+        Friendship friendship = new Friendship();
+        friendship.setUserAId(a);
+        friendship.setUserBId(b);
+        friendship.setRequesterId(me.getId());
+        friendship.setStatus("PENDING");
+        friendshipRepository.save(friendship);
+        return ResponseEntity.status(201).body(Map.of("message", "친구 요청을 보냈습니다."));
     }
 
 
@@ -167,7 +246,9 @@ public class ChatRoomController {
     private boolean areFriends(Long first, Long second) {
         long a = Math.min(first, second);
         long b = Math.max(first, second);
-        return friendshipRepository.findByUserAIdAndUserBId(a, b).isPresent();
+        return friendshipRepository.findByUserAIdAndUserBId(a, b)
+                .filter(friendship -> "ACCEPTED".equals(friendship.getStatus()))
+                .isPresent();
     }
 
     private RoomSummary summary(ChatRoom room, String viewerNickname) {

@@ -39,10 +39,15 @@ export default function App() {
   const [notifications, setNotifications] = useState([])
   const [error, setError] = useState('')
   const [friends, setFriends] = useState([])
+  const [friendRequests, setFriendRequests] = useState([])
+  const [friendNotice, setFriendNotice] = useState('')
+  const [roomFriendRequestsSent, setRoomFriendRequestsSent] = useState([])
   const [friendCodeInput, setFriendCodeInput] = useState('')
   const [groupName, setGroupName] = useState('')
   const [selectedFriendIds, setSelectedFriendIds] = useState([])
   const [groupModalOpen, setGroupModalOpen] = useState(false)
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [selectedInviteFriendIds, setSelectedInviteFriendIds] = useState([])
   const [friendContextMenu, setFriendContextMenu] = useState(null)
   const [roomContextMenu, setRoomContextMenu] = useState(null)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
@@ -68,6 +73,12 @@ export default function App() {
     if (!loggedIn) return
     try { setFriends(await request('/friends')) }
     catch { setError('친구 목록을 불러오지 못했습니다.') }
+  }, [loggedIn])
+
+  const loadFriendRequests = useCallback(async () => {
+    if (!loggedIn) return
+    try { setFriendRequests(await request('/friends/requests')) }
+    catch { setError('친구 요청을 불러오지 못했습니다.') }
   }, [loggedIn])
 
   const loadNotifications = useCallback(async () => {
@@ -108,9 +119,25 @@ export default function App() {
   useEffect(() => {
     if (!loggedIn) return undefined
     loadFriends()
-    const timer = window.setInterval(loadFriends, 5000)
+    loadFriendRequests()
+    const timer = window.setInterval(() => {
+      loadFriends()
+      loadFriendRequests()
+    }, 5000)
     return () => window.clearInterval(timer)
-  }, [loadFriends, loggedIn])
+  }, [loadFriendRequests, loadFriends, loggedIn])
+
+  useEffect(() => {
+    if (!friendNotice) return undefined
+    const timer = window.setTimeout(() => setFriendNotice(''), 4000)
+    return () => window.clearTimeout(timer)
+  }, [friendNotice])
+
+  useEffect(() => {
+    if (!error) return undefined
+    const timer = window.setTimeout(() => setError(''), 4000)
+    return () => window.clearTimeout(timer)
+  }, [error])
 
   useEffect(() => {
     if (!loggedIn) return undefined
@@ -205,6 +232,9 @@ export default function App() {
     setLoggedIn(false)
     setCurrentUser(null)
     setNickname('')
+    setFriends([])
+    setFriendRequests([])
+    setFriendNotice('')
     setNotifications([])
     window.history.replaceState({ view: 'login' }, '')
   }
@@ -270,7 +300,7 @@ export default function App() {
       await request(`/friends/code?code=${encodeURIComponent(friendCodeInput.trim())}`, { method: 'POST' })
       setFriendCodeInput('')
       setError('')
-      await loadFriends()
+      setFriendNotice('친구 요청을 보냈습니다. 상대방이 수락하면 친구 목록에 표시됩니다.')
     } catch (requestError) {
       if (requestError.status === 401) {
         setError('로그인이 만료되었습니다. 로그아웃 후 다시 로그인해 주세요.')
@@ -278,10 +308,31 @@ export default function App() {
         setError('해당 친구 코드를 찾을 수 없습니다.')
       } else if (requestError.status === 400) {
         setError('자기 자신의 코드는 추가할 수 없습니다.')
+      } else if (requestError.status === 409) {
+        setError('이미 친구이거나 처리 대기 중인 요청이 있습니다.')
       } else {
         setError('친구를 추가하지 못했습니다.')
       }
     }
+  }
+
+  async function acceptFriendRequest(requestId) {
+    try {
+      await request(`/friends/requests/${requestId}/accept`, { method: 'POST' })
+      setFriendRequests((items) => items.filter((item) => item.requestId !== requestId))
+      setFriendNotice('친구 요청을 수락했습니다.')
+      setError('')
+      await loadFriends()
+    } catch { setError('친구 요청을 수락하지 못했습니다.') }
+  }
+
+  async function rejectFriendRequest(requestId) {
+    try {
+      await request(`/friends/requests/${requestId}`, { method: 'DELETE' })
+      setFriendRequests((items) => items.filter((item) => item.requestId !== requestId))
+      setFriendNotice('친구 요청을 거절했습니다.')
+      setError('')
+    } catch { setError('친구 요청을 거절하지 못했습니다.') }
   }
 
   async function startDirectChat(friend) {
@@ -319,6 +370,8 @@ export default function App() {
         setCurrentUser(null)
         setNickname('')
         setFriends([])
+        setFriendRequests([])
+        setFriendNotice('')
         setNotifications([])
         setError('로그인이 만료되었습니다. 다시 로그인해 주세요.')
         window.history.replaceState({ view: 'login' }, '')
@@ -349,6 +402,55 @@ export default function App() {
     } catch { setError('단체방을 만들지 못했습니다.') }
   }
 
+  function openInviteModal() {
+    setSelectedInviteFriendIds([])
+    setError('')
+    setInviteModalOpen(true)
+  }
+
+  function toggleInviteFriend(friendId) {
+    setSelectedInviteFriendIds((ids) => ids.includes(friendId)
+      ? ids.filter((id) => id !== friendId)
+      : [...ids, friendId])
+  }
+
+  async function inviteFriends(event) {
+    event.preventDefault()
+    if (!currentRoom || !selectedInviteFriendIds.length) return
+    try {
+      await request(`/chat/room/${currentRoom.roomId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendIds: selectedInviteFriendIds }),
+      })
+      setSelectedInviteFriendIds([])
+      setInviteModalOpen(false)
+      setError('')
+      await Promise.all([loadMembers(currentRoom.roomId), loadRooms()])
+    } catch (requestError) {
+      if (requestError.status === 403) setError('현재 방의 참여자만 자신의 친구를 초대할 수 있습니다.')
+      else if (requestError.status === 409) setError('선택한 친구가 이미 채팅방에 참여하고 있습니다.')
+      else setError('친구를 채팅방에 초대하지 못했습니다.')
+    }
+  }
+
+  async function requestRoomMemberFriend(memberNickname) {
+    if (!currentRoom) return
+    try {
+      await request(`/chat/room/${currentRoom.roomId}/friend-requests/${encodeURIComponent(memberNickname)}`, { method: 'POST' })
+      setRoomFriendRequestsSent((items) => items.includes(memberNickname) ? items : [...items, memberNickname])
+      setFriendNotice(`${memberNickname}님에게 친구 요청을 보냈습니다.`)
+      setError('')
+    } catch (requestError) {
+      if (requestError.status === 409) {
+        setRoomFriendRequestsSent((items) => items.includes(memberNickname) ? items : [...items, memberNickname])
+        setError('이미 친구이거나 처리 대기 중인 친구 요청이 있습니다.')
+      } else {
+        setError('단체방 참여자에게 친구 요청을 보내지 못했습니다.')
+      }
+    }
+  }
+
   async function enterRoom(room, addHistory = true) {
     if (!nickname.trim()) return setError('닉네임을 먼저 입력하세요.')
     try {
@@ -373,6 +475,7 @@ export default function App() {
       // 채팅방 입장은 계속 진행하고 알림 읽음 처리는 다음 조회에서 재시도합니다.
     }
     setCurrentRoom(room)
+    setRoomFriendRequestsSent([])
     setMessages(await request(`/chat/room/${room.roomId}/messages?nickname=${encodeURIComponent(nickname.trim())}`))
     if (addHistory) {
       window.history.pushState({ view: 'room', roomId: room.roomId }, '')
@@ -479,6 +582,9 @@ export default function App() {
         setMessages([])
         setLoggedIn(false)
         setNickname('')
+        setFriends([])
+        setFriendRequests([])
+        setFriendNotice('')
         setNotifications([])
         return
       }
@@ -560,7 +666,7 @@ export default function App() {
   return (
     <main className="messenger-shell">
       <aside className="profile-rail">
-        <div className="brand"><span className="brand-mark">C</span><strong>Connect</strong></div>
+        <div className="brand"><button className="brand-mark" type="button" title="홈으로 새로고침" aria-label="홈으로 새로고침" onClick={() => window.location.assign('/')}>C</button><strong>Connect</strong></div>
         <div className="profile-block">
           <button className="avatar profile-image-button" type="button" onClick={openProfileModal} title="프로필 편집">
             {currentUser?.profileImageUrl ? <img src={profileImageSrc(currentUser.profileImageUrl)} alt="내 프로필" /> : nickname.slice(0, 1).toUpperCase()}
@@ -594,8 +700,17 @@ export default function App() {
         {currentRoom ? <>
           <header className="conversation-header">
             <div><h2>{currentRoom.name}</h2><p>{onlineMembers.length}명 접속 중</p></div>
+            {currentRoom.roomType === 'GROUP' && <button className="room-invite-button" type="button" onClick={openInviteModal}>친구 초대</button>}
           </header>
-          <div className="member-strip"><span>참여자 · {members.join(', ') || '-'}</span><span className="online">● 온라인 · {onlineMembers.join(', ') || '-'}</span></div>
+          <div className="member-strip">
+            <div className="room-member-list"><strong>참여자</strong>{members.map((member) => {
+              const isMe = member === nickname.trim()
+              const isFriend = friends.some((friend) => friend.nickname === member)
+              const requestSent = roomFriendRequestsSent.includes(member)
+              return <span className="room-member-chip" key={member}><i className={onlineMembers.includes(member) ? 'online' : ''} />{member}{!isMe && !isFriend && <button type="button" disabled={requestSent} onClick={() => requestRoomMemberFriend(member)}>{requestSent ? '요청 보냄' : '친구 요청'}</button>}</span>
+            })}</div>
+            <span className="online">● 온라인 · {onlineMembers.join(', ') || '-'}</span>
+          </div>
           <section className="messages" ref={messagesRef}>
             {messages.filter((item) => item.type !== 'JOIN').map((item, index) => item.type === 'CHAT' ? (
               <article className={item.sender === nickname.trim() ? 'message mine' : 'message'} key={`${item.id ?? index}-${item.timestamp}`} onContextMenu={(event) => openReactionContextMenu(event, item)}>
@@ -622,7 +737,18 @@ export default function App() {
           <input value={friendCodeInput} onChange={(event) => setFriendCodeInput(event.target.value.toUpperCase())} placeholder="친구 코드 입력" maxLength="12" />
           <button title="친구 추가">＋</button>
         </form>
+        {friendNotice && <div className="friend-notice">{friendNotice}</div>}
         {error && <div className="sidebar-error">{error}</div>}
+        {friendRequests.length > 0 && <section className="friend-request-section">
+          <div className="friend-request-title"><strong>받은 친구 요청</strong><span>{friendRequests.length}</span></div>
+          <div className="friend-request-list">
+            {friendRequests.map((friendRequest) => <div className="friend-request-item" key={friendRequest.requestId}>
+              <span className="mini-avatar">{friendRequest.profileImageUrl ? <img src={profileImageSrc(friendRequest.profileImageUrl)} alt="" /> : friendRequest.nickname.slice(0, 1)}</span>
+              <strong>{friendRequest.nickname}</strong>
+              <div><button type="button" onClick={() => acceptFriendRequest(friendRequest.requestId)}>수락</button><button type="button" className="reject" onClick={() => rejectFriendRequest(friendRequest.requestId)}>거절</button></div>
+            </div>)}
+          </div>
+        </section>}
         <div className="friend-list right-list">
           {friends.map((friend, index) => <button className="friend-item" key={friend.id} onClick={() => startDirectChat(friend)} onContextMenu={(event) => openFriendContextMenu(event, friend)}><span className={`mini-avatar tone-${index % 4}`}>{friend.profileImageUrl ? <img src={profileImageSrc(friend.profileImageUrl)} alt="" /> : friend.nickname.slice(0, 1)}</span><span><strong>{friend.nickname}</strong><small className={friend.online ? 'friend-online' : 'friend-offline'}><i /> {friend.online ? '온라인' : '오프라인'} · 1:1 대화</small></span><b>›</b></button>)}
           {!friends.length && <p className="empty compact">친구 코드를 입력해 친구를 추가하세요.</p>}
@@ -697,6 +823,31 @@ export default function App() {
           </section>
           {error && <div className="modal-error">{error}</div>}
           <button className="create-group-button" type="submit" disabled={!groupName.trim() || !selectedFriendIds.length}>단체 대화 시작</button>
+        </form>
+      </div>}
+
+      {inviteModalOpen && <div className="modal-backdrop" onMouseDown={() => setInviteModalOpen(false)}>
+        <form className="group-modal" onSubmit={inviteFriends} onMouseDown={(event) => event.stopPropagation()}>
+          <header><div><p className="eyebrow">INVITE FRIENDS</p><h2>{currentRoom?.name}에 초대</h2></div><button className="modal-close" type="button" onClick={() => setInviteModalOpen(false)}>×</button></header>
+          <section className="invite-section">
+            <strong>초대할 친구 <small>{selectedInviteFriendIds.length}명</small></strong>
+            <div className="invited-people">
+              {friends.filter((friend) => selectedInviteFriendIds.includes(friend.id)).map((friend) => <button type="button" key={friend.id} onClick={() => toggleInviteFriend(friend.id)}><span className="mini-avatar">{friend.nickname.slice(0, 1)}</span><span>{friend.nickname}</span><b>×</b></button>)}
+              {!selectedInviteFriendIds.length && <p>현재 방에 없는 친구를 선택하세요.</p>}
+            </div>
+          </section>
+          <section className="modal-friend-section">
+            <strong>초대 가능한 친구</strong>
+            <div className="modal-friend-list">
+              {friends.filter((friend) => !members.includes(friend.nickname)).map((friend) => {
+                const selected = selectedInviteFriendIds.includes(friend.id)
+                return <div className="modal-friend-row" key={friend.id}><span className="mini-avatar">{friend.profileImageUrl ? <img src={profileImageSrc(friend.profileImageUrl)} alt="" /> : friend.nickname.slice(0, 1)}</span><span><strong>{friend.nickname}</strong><small className={friend.online ? 'friend-online' : 'friend-offline'}>{friend.online ? '온라인' : '오프라인'}</small></span><button className={selected ? 'selected' : ''} type="button" onClick={() => toggleInviteFriend(friend.id)}>{selected ? '✓' : '＋'}</button></div>
+              })}
+              {!friends.some((friend) => !members.includes(friend.nickname)) && <p className="empty">추가로 초대할 수 있는 친구가 없습니다.</p>}
+            </div>
+          </section>
+          {error && <div className="modal-error">{error}</div>}
+          <button className="create-group-button" type="submit" disabled={!selectedInviteFriendIds.length}>선택한 친구 초대</button>
         </form>
       </div>}
     </main>
