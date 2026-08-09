@@ -3,10 +3,10 @@ services:
     image: mysql:8.0
     container_name: mysql_container
     environment:
-      MYSQL_ROOT_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
       MYSQL_DATABASE: chatting-alarm
       MYSQL_USER: chat_user
-      MYSQL_PASSWORD: chatmysql1357!
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-local-chat-password}
     ports:
       - "3306:3306"
     volumes:
@@ -25,7 +25,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chatting_alarm?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
       SPRING_DATASOURCE_USERNAME: chat_user
-      SPRING_DATASOURCE_PASSWORD: chatmysql1357!
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-local-chat-password}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       APP_FRONTEND_ORIGIN: http://localhost:3000
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-not-configured}
