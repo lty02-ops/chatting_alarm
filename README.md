@@ -4,6 +4,8 @@ Spring Boot와 React로 만든 실시간 채팅 서비스입니다.
 
 로컬에서는 Docker Compose로 실행하고, 운영 환경은 Terraform과 Kubernetes 매니페스트로 구성했습니다.
 
+[![CI](https://github.com/lty02-ops/chatting_alarm/actions/workflows/ci.yml/badge.svg)](https://github.com/lty02-ops/chatting_alarm/actions/workflows/ci.yml)
+
 ## 주요 기능
 
 - Google, Naver, Kakao 소셜 로그인
