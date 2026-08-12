@@ -2,7 +2,7 @@
 
 Spring Boot와 React로 만든 실시간 채팅 서비스입니다.
 
-로컬 환경은 Docker Compose로 실행하고, 운영 환경은 Terraform, Kubernetes, GitHub Actions를 이용해 AWS EKS에 배포했습니다
+로컬 환경은 Docker Compose로 실행하고, 운영 환경은 Terraform, Kubernetes, GitHub Actions를 이용해 AWS EKS에 배포했습니다.
 
 [![CI](https://github.com/lty02-ops/chatting_alarm/actions/workflows/ci.yml/badge.svg)](https://github.com/lty02-ops/chatting_alarm/actions/workflows/ci.yml)
 
@@ -24,35 +24,35 @@ Spring Boot와 React로 만든 실시간 채팅 서비스입니다.
 
 ![Chatting Alarm AWS 아키텍처](image/architecture.png)
 
-DNS는 Route 53 대신 외부 DNS를 사용합니다. 사용자가 `app.chatting-alarm.p-e.kr` 또는 `api.chatting-alarm.p-e.kr`로 접속하면 ALB가 Kubernetes Ingress 규칙에 따라 프런트엔드와 백엔드로 요청을 나눠 보냅니다.
+DNS는 Route 53 대신 외부 DNS를 사용합니다. 사용자가 `app.chatting-alarm.p-e.kr` 또는 `api.chatting-alarm.p-e.kr`로 접속하면 ALB가 Kubernetes Ingress 규칙에 따라 프론트엔드와 백엔드로 요청을 나눠 보냅니다.
 
-프런트엔드와 백엔드는 각각 두 개의 Pod로 구성했습니다. 한 가용 영역에만 Pod가 몰리지 않도록 topology spread constraint를 설정했고, 유지보수 중 두 Pod가 동시에 내려가지 않도록 PodDisruptionBudget도 추가했습니다.
+프론트엔드와 백엔드는 각각 두 개의 Pod로 구성했습니다. 가용 영역 한곳에만 Pod가 몰리지 않도록 topology spread constraint를 설정했고, 유지보수 중 두 Pod가 동시에 다운되지 않도록 PodDisruptionBudget도 추가했습니다.
 
 ### CI/CD
 
 ![Chatting Alarm CI/CD Pipeline](image/01_cicd_pipeline.png)
 
-`main` 브랜치의 push와 Pull Request에서는 백엔드 테스트와 프런트엔드 빌드를 실행합니다. 배포는 수동으로 실행하며, GitHub OIDC로 AWS IAM Role을 맡아 이미지를 ECR에 올리고 `kubectl set image`로 EKS Deployment를 갱신합니다.
+`main` 브랜치에 코드가 push되거나 Pull Request가 생성되면 백엔드 테스트와 프론트엔드 빌드를 실행합니다. 배포는 GitHub Actions에서 수동으로 실행하며, GitHub OIDC를 통해 AWS IAM Role을 맡아 Docker 이미지를 ECR에 업로드합니다. 이후 `kubectl set image`로 EKS Deployment의 컨테이너 이미지를 갱신하고 새로운 Pod를 배포합니다.
 
 AWS 인증에는 고정 Access Key 대신 GitHub OIDC를 사용했습니다.
 
-### 프런트엔드 요청 흐름
+### 프론트엔드 요청 흐름
 
 ![Chatting Alarm Frontend Flow](image/02_frontend_flow.png)
 
-`app.chatting-alarm.p-e.kr`로 들어온 HTTPS 요청은 ALB와 Kubernetes Ingress를 거쳐 Frontend Service로 전달되고, Service가 두 개의 React Pod로 요청을 분산합니다.
+사용자가 `app.chatting-alarm.p-e.kr`에 접속하면 외부 DNS를 통해 ALB 주소를 조회합니다. ALB는 ACM 인증서를 사용해 HTTPS 요청의 TLS 연결을 종료한 뒤, Ingress를 기반으로 생성된 호스트 라우팅 규칙에 따라 Frontend Service를 대상으로 요청을 처리합니다. 실제 트래픽은 ALB Target Group에 등록된 두 개의 React Pod 중 하나로 전달됩니다.
 
 ### 백엔드 REST API 요청 흐름
 
 ![Chatting Alarm Backend REST API Flow](image/03_backend_rest_api_flow.png)
 
-`api.chatting-alarm.p-e.kr`의 REST 요청은 Backend Service를 거쳐 Spring Boot Pod로 전달됩니다. 애플리케이션은 Redis에서 세션과 접속 상태를 관리하고, RDS MySQL에 영속 데이터를 저장합니다.
+사용자가 `api.chatting-alarm.p-e.kr`로 REST API를 요청하면 외부 DNS를 통해 ALB 주소를 조회합니다. ALB는 ACM 인증서를 사용해 HTTPS 요청의 TLS 연결을 종료한 뒤, Ingress를 기반으로 생성된 호스트 라우팅 규칙에 따라 Backend Service를 대상으로 요청을 처리합니다. 실제 트래픽은 ALB Target Group에 등록된 두 개의 Spring Boot Pod 중 하나로 전달됩니다. 애플리케이션은 Redis를 실시간 이벤트 전달과 접속 상태 관리에 사용하고, 사용자·친구·채팅방·메시지 등의 영속 데이터는 RDS MySQL에 저장합니다.
 
 ### 백엔드 WebSocket 요청 흐름
 
 ![Chatting Alarm Backend WebSocket Flow](image/04_backend_websocket_flow.png)
 
-`api.chatting-alarm.p-e.kr/ws`의 WSS 연결은 Ingress와 Backend Service를 통해 Spring Boot Pod에 전달됩니다. Redis Pub/Sub으로 Pod 사이의 실시간 이벤트와 온라인 상태를 공유하고, 채팅 메시지는 RDS MySQL에 저장합니다.
+클라이언트가 `api.chatting-alarm.p-e.kr/ws`로 WSS 연결을 요청하면 ALB가 ACM 인증서를 사용해 TLS 연결을 종료합니다. 이후 Ingress를 기반으로 생성된 경로 라우팅 규칙에 따라 Backend Service를 대상으로 요청을 처리하며, 실제 연결은 ALB Target Group에 등록된 Spring Boot Pod 중 하나로 전달됩니다. 각 Pod는 Redis Pub/Sub을 통해 실시간 채팅 이벤트와 접속 상태를 공유하고, 채팅 메시지는 RDS MySQL에 저장합니다.
 
 ## 사용 기술
 
@@ -100,7 +100,7 @@ KAKAO_CLIENT_ID=
 KAKAO_CLIENT_SECRET=
 ```
 
-로컬 Callback URL은 다음과 같이 등록했습니다.
+로컬 Callback URL은 다음과 같이 등록합니다.
 
 ```text
 Google: http://localhost:8000/login/oauth2/code/google
@@ -122,12 +122,6 @@ docker compose up --build
 docker compose down
 ```
 
-로컬 DB와 업로드 파일까지 지우려면 `-v` 옵션을 추가합니다.
-
-```bash
-docker compose down -v
-```
-
 ## AWS 배포
 
 EKS, NAT Gateway, ALB, RDS Multi-AZ, ElastiCache 등은 실행 시간 동안 비용이 발생합니다.
@@ -147,7 +141,7 @@ aws s3api put-bucket-versioning \
   --versioning-configuration Status=Enabled
 ```
 
-변수 파일을 만들고 인프라를 배포합니다.
+tfvars 파일을 만들고 인프라를 배포합니다.
 
 ```bash
 cd infra/aws
@@ -242,7 +236,7 @@ terraform destroy
 
 State용 S3 버킷은 Terraform 밖에서 만들었기 때문에 마지막에 별도로 비우고 삭제합니다.
 
-## TROUBLE SHOOTING
+## Trouble Shooting
 
 ### ALB Controller가 시작되지 않던 문제
 
@@ -250,7 +244,7 @@ State용 S3 버킷은 Terraform 밖에서 만들었기 때문에 마지막에 �
 
 ### GitHub Actions OIDC 인증 실패
 
-GitHub Actions에서 AWS IAM Role을 사용하려 했지만, Trust Policy의 sub 조건이 실제 GitHub OIDC 토큰의 형식과 일치하지 않아 인증에 실패했습니다. IAM Trust Policy를 확인하여 잘못 설정된 `sub`값을 발견했고, `repo:lty02-ops/chatting_alarm:ref:refs/heads/main` 형식으로 수정하여 OIDC 인증 문제를 해결했습니다.
+GitHub Actions에서 AWS IAM Role을 사용하려 했지만, Trust Policy의 `sub` 조건이 실제 GitHub OIDC 토큰의 형식과 일치하지 않아 인증에 실패했습니다. IAM Trust Policy를 확인하여 잘못 설정된 `sub` 값을 발견했고, `repo:lty02-ops/chatting_alarm:ref:refs/heads/main` 형식으로 수정하여 OIDC 인증 문제를 해결했습니다.
 
 ### EKS 환경에서 S3 파일 업로드 실패
 
@@ -258,11 +252,11 @@ Backend Pod에서 S3 파일 업로드 시 IRSA를 통한 AWS 임시 자격 증�
 
 ### RollingUpdate 중 새 Pod가 Pending 상태로 멈춘 문제
 
-두 개의 `t3.small` 노드에서 RollingUpdate를 실행할 때 기존 Pod과 새 Pod을 동시에 배치할 리소스가 부족해 새 Pod이 `Pending` 상태에 머물렀습니다. 그래서 노드를 `t3.medium`으로 바꾸고 프론트엔드 Deployment의 RollingUpdate 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 변경했습니다. 이를 통해 기존 Pod 하나를 먼저 종료하여 리소스를 확보한 후 새 Pod가 배포되도록 했습니다.
+두 개의 `t3.small` 노드에서 RollingUpdate를 실행할 때 기존 Pod와 새 Pod를 동시에 배치할 리소스가 부족해 새 Pod이 `Pending` 상태에 머물렀습니다. 그래서 노드를 `t3.medium`으로 바꾸고 프론트엔드 Deployment의 RollingUpdate 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 변경했습니다. 이를 통해 기존 Pod 하나를 먼저 종료하여 리소스를 확보한 후 새 Pod가 배포되도록 했습니다.
 
 ## 아쉬운 점
 
-- 노드 그룹의 최대 크기는 늘려 두었지만 Cluster Autoscaler나 Karpenter를 이용해 HPA를 적용하지 못했습니다.
+- HPA와 Cluster Autoscaler 또는 Karpenter를 적용하지 않아서 부하에 따라 Pod와 Worker Node 수가 자동으로 확장되지는 않습니다.
 - GitHub Actions는 이미지 교체까지 자동화하지만 Kubernetes 매니페스트 변경 전체를 자동으로 반영하지는 않습니다.
 
 ## 개발자
