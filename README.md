@@ -22,7 +22,7 @@ Spring Boot와 React로 만든 실시간 채팅 서비스입니다.
 
 ### 전체 구성
 
-![Chatting Alarm AWS 아키텍처](image/architecture.png)
+![Chatting Alarm AWS 아키텍처](image/Chatting_alarm_overall.png)
 
 DNS는 Route 53 대신 외부 DNS를 사용합니다. 사용자가 `app.chatting-alarm.p-e.kr` 또는 `api.chatting-alarm.p-e.kr`로 접속하면 ALB가 Kubernetes Ingress 규칙에 따라 프론트엔드와 백엔드로 요청을 나눠 보냅니다.
 
@@ -30,7 +30,7 @@ DNS는 Route 53 대신 외부 DNS를 사용합니다. 사용자가 `app.chatting
 
 ### CI/CD
 
-![Chatting Alarm CI/CD Pipeline](image/01_cicd_pipeline.png)
+![Chatting Alarm CI/CD Pipeline](image/Chatting_alarm_cicd.png)
 
 `main` 브랜치에 코드가 push되거나 Pull Request가 생성되면 백엔드 테스트와 프론트엔드 빌드를 실행합니다. 배포는 GitHub Actions에서 수동으로 실행하며, GitHub OIDC를 통해 AWS IAM Role을 맡아 Docker 이미지를 ECR에 업로드합니다. 이후 `kubectl set image`로 EKS Deployment의 컨테이너 이미지를 갱신하고 새로운 Pod를 배포합니다.
 
@@ -38,19 +38,19 @@ AWS 인증에는 고정 Access Key 대신 GitHub OIDC를 사용했습니다.
 
 ### 프론트엔드 요청 흐름
 
-![Chatting Alarm Frontend Flow](image/02_frontend_flow.png)
+![Chatting Alarm Frontend Flow](image/Chatting_alarm_Frontend_Flow.png)
 
 사용자가 `app.chatting-alarm.p-e.kr`에 접속하면 외부 DNS를 통해 ALB 주소를 조회합니다. ALB는 ACM 인증서를 사용해 HTTPS 요청의 TLS 연결을 종료한 뒤, Ingress를 기반으로 생성된 호스트 라우팅 규칙에 따라 Frontend Service를 대상으로 요청을 처리합니다. 실제 트래픽은 ALB Target Group에 등록된 두 개의 React Pod 중 하나로 전달됩니다.
 
 ### 백엔드 REST API 요청 흐름
 
-![Chatting Alarm Backend REST API Flow](image/03_backend_rest_api_flow.png)
+![Chatting Alarm Backend REST API Flow](image/Chatting_alarm_Backend_REST_API_Flow.png)
 
 사용자가 `api.chatting-alarm.p-e.kr`로 REST API를 요청하면 외부 DNS를 통해 ALB 주소를 조회합니다. ALB는 ACM 인증서를 사용해 HTTPS 요청의 TLS 연결을 종료한 뒤, Ingress를 기반으로 생성된 호스트 라우팅 규칙에 따라 Backend Service를 대상으로 요청을 처리합니다. 실제 트래픽은 ALB Target Group에 등록된 두 개의 Spring Boot Pod 중 하나로 전달됩니다. 애플리케이션은 Redis를 실시간 이벤트 전달과 접속 상태 관리에 사용하고, 사용자·친구·채팅방·메시지 등의 영속 데이터는 RDS MySQL에 저장합니다.
 
 ### 백엔드 WebSocket 요청 흐름
 
-![Chatting Alarm Backend WebSocket Flow](image/04_backend_websocket_flow.png)
+![Chatting Alarm Backend WebSocket Flow](image/Chatting_alarm_Backend_WebSocket_Flow.png)
 
 클라이언트가 `api.chatting-alarm.p-e.kr/ws`로 WSS 연결을 요청하면 ALB가 ACM 인증서를 사용해 TLS 연결을 종료합니다. 이후 Ingress를 기반으로 생성된 경로 라우팅 규칙에 따라 Backend Service를 대상으로 요청을 처리하며, 실제 연결은 ALB Target Group에 등록된 Spring Boot Pod 중 하나로 전달됩니다. 각 Pod는 Redis Pub/Sub을 통해 실시간 채팅 이벤트와 접속 상태를 공유하고, 채팅 메시지는 RDS MySQL에 저장합니다.
 
