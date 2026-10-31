@@ -27,6 +27,12 @@ variable "alert_email" {
   default     = null
 }
 
+variable "aiops_bedrock_model_id" {
+  description = "Amazon Bedrock model used for event-driven incident analysis"
+  type        = string
+  default     = "anthropic.claude-3-haiku-20240307-v1:0"
+}
+
 variable "github_repository" {
   description = "GitHub repository allowed to deploy, in owner/repository format; null disables the deployment role"
   type        = string

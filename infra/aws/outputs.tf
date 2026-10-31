@@ -138,3 +138,17 @@ output "github_actions_role_arn" {
   description = "IAM role assumed by GitHub Actions"
   value       = var.github_repository == null ? null : aws_iam_role.github_actions[0].arn
 }
+output "aiops_event_queue_url" {
+  description = "SQS queue URL for CloudWatch alarm events"
+  value       = aws_sqs_queue.aiops_events.id
+}
+
+output "aiops_dead_letter_queue_url" {
+  description = "SQS dead-letter queue URL for failed incident events"
+  value       = aws_sqs_queue.aiops_events_dlq.id
+}
+
+output "incident_collector_function_name" {
+  description = "Lambda function that collects bounded incident context"
+  value       = aws_lambda_function.incident_collector.function_name
+}

@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-event-exporter
+  namespace: chatting-alarm
+data:
+  config.yaml: |
+    logLevel: info
+    logFormat: json
+    namespace: chatting-alarm
+    omitLookup: true
+    maxEventAgeSeconds: 60
+    route:
+      routes:
+        - match:
+            - type: "Warning"
+              receiver: "warning-stdout"
+    receivers:
+      - name: "warning-stdout"
+        stdout:
+          deDot: true
+          layout:
+            event_type: "kubernetes-warning-event"
+            type: "{{ .Type }}"
+            reason: "{{ .Reason }}"
+            message: "{{ .Message }}"
+            namespace: "{{ .InvolvedObject.Namespace }}"
+            kind: "{{ .InvolvedObject.Kind }}"
+            name: "{{ .InvolvedObject.Name }}"
+            count: "{{ .Count }}"
+            component: "{{ .Source.Component }}"
+            host: "{{ .Source.Host }}"
+            created_at: "{{ .GetTimestampISO8601 }}"

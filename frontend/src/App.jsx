@@ -26,7 +26,6 @@ export default function App() {
   const attachmentInputRef = useRef(null)
   const messagesRef = useRef(null)
   const [rooms, setRooms] = useState([])
-  const [devNickname, setDevNickname] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
   const [nickname, setNickname] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
@@ -55,7 +54,7 @@ export default function App() {
   const [profileFile, setProfileFile] = useState(null)
   const [profilePreview, setProfilePreview] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [theme, setTheme] = useState(() => window.localStorage.getItem('chat-theme') || 'light')
+  const [theme, setTheme] = useState(() => window.localStorage.getItem('chat-theme') || 'dark')
   const [reactions, setReactions] = useState({})
   const [reactionContextMenu, setReactionContextMenu] = useState(null)
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
@@ -205,25 +204,6 @@ export default function App() {
 
   function socialLogin(provider) {
     window.location.href = `${apiBase}/oauth2/authorization/${provider}`
-  }
-
-  async function devLogin(event) {
-    event.preventDefault()
-    const value = devNickname.trim()
-    if (!value) {
-      setError('테스트용 닉네임을 입력하세요.')
-      return
-    }
-    try {
-      const user = await request(`/auth/dev-login?nickname=${encodeURIComponent(value)}`, { method: 'POST' })
-      setCurrentUser(user)
-      setNickname(user.nickname)
-      setLoggedIn(true)
-      setError('')
-      window.history.pushState({ view: 'lobby' }, '')
-    } catch {
-      setError('개발용 로그인에 실패했습니다. 다른 닉네임을 사용해 보세요.')
-    }
   }
 
   async function logout() {
@@ -645,20 +625,24 @@ export default function App() {
   if (!loggedIn) return (
     <main className="login-shell">
       <section className="login-card">
-        <p className="eyebrow">CHATTING ALARM</p>
-        <h1>소셜 로그인</h1>
-        <p>소셜 계정으로 로그인하면 중복되지 않는 사용자로 채팅할 수 있습니다.</p>
-        {error && <div className="error">{error}</div>}
-        <div className="social-login-list">
-          <button className="social-button kakao" type="button" onClick={() => socialLogin('kakao')}>카카오로 로그인</button>
-          <button className="social-button naver" type="button" onClick={() => socialLogin('naver')}>네이버로 로그인</button>
-          <button className="social-button google" type="button" onClick={() => socialLogin('google')}>Google로 로그인</button>
+        <aside className="login-showcase">
+          <div className="login-brand"><span><img src="/modootalk-icon-v2.png" alt="" /></span><strong>모두톡</strong></div>
+          <div className="showcase-copy">
+            <h1>많은 사람들과<br />소통해보세요!</h1>
+            <p>소중한 순간을 만들어보세요.</p>
+          </div>
+          <i className="showcase-orbit orbit-one" /><i className="showcase-orbit orbit-two" />
+        </aside>
+        <div className="login-panel">
+          <h2 className="login-title">로그인</h2>
+          {error && <div className="error">{error}</div>}
+          <div className="social-login-list">
+            <button className="social-button kakao" type="button" onClick={() => socialLogin('kakao')}><span>K</span>카카오로 계속하기</button>
+            <button className="social-button naver" type="button" onClick={() => socialLogin('naver')}><span>N</span>네이버로 계속하기</button>
+            <button className="social-button google" type="button" onClick={() => socialLogin('google')}><span>G</span>Google로 계속하기</button>
+          </div>
+          <p className="login-terms">로그인하면 서비스 이용약관 및 개인정보 처리방침에 동의하게 됩니다.</p>
         </div>
-        <div className="login-divider"><span>OAuth 키 발급 전 테스트</span></div>
-        <form className="dev-login-form" onSubmit={devLogin}>
-          <input value={devNickname} onChange={(event) => setDevNickname(event.target.value)} placeholder="테스트용 닉네임" />
-          <button type="submit">개발용 임시 로그인</button>
-        </form>
       </section>
     </main>
   )
@@ -666,7 +650,7 @@ export default function App() {
   return (
     <main className="messenger-shell">
       <aside className="profile-rail">
-        <div className="brand"><button className="brand-mark" type="button" title="홈으로 새로고침" aria-label="홈으로 새로고침" onClick={() => window.location.assign('/')}>C</button><strong>Connect</strong></div>
+        <div className="brand"><button className="brand-mark" type="button" title="모두톡 홈" aria-label="모두톡 홈" onClick={() => window.location.assign('/')}><img src="/modootalk-icon-v2.png" alt="" /></button><strong>모두톡</strong></div>
         <div className="profile-block">
           <button className="avatar profile-image-button" type="button" onClick={openProfileModal} title="프로필 편집">
             {currentUser?.profileImageUrl ? <img src={profileImageSrc(currentUser.profileImageUrl)} alt="내 프로필" /> : nickname.slice(0, 1).toUpperCase()}

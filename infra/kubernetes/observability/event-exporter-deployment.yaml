@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubernetes-event-exporter
+  namespace: chatting-alarm
+  labels:
+    app: kubernetes-event-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubernetes-event-exporter
+  template:
+    metadata:
+      labels:
+        app: kubernetes-event-exporter
+    spec:
+      serviceAccountName: kubernetes-event-exporter
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: event-exporter
+          image: ghcr.io/resmoio/kubernetes-event-exporter:v1.7@sha256:36e5ce64dad3d22426c1e7a0f1dd5d5ae0e9ff53aa86e6bcf7429d483582a317
+          imagePullPolicy: IfNotPresent
+          args:
+            - -conf=/data/config.yaml
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /data
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: kubernetes-event-exporter
