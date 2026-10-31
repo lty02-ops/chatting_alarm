@@ -38,12 +38,6 @@
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white)
 
-- Backend: Java 17, Spring Boot, Spring Security, JPA, WebSocket/STOMP
-- Frontend: React, Vite, SockJS, STOMP.js
-- Data: MySQL, Redis, S3
-- AWS: EKS, ECR, ALB, RDS, ElastiCache, S3, Secrets Manager, ACM, CloudWatch
-- IaC/CI: Terraform, Kubernetes, Docker, GitHub Actions
-
 
 ## 아키텍처
 
