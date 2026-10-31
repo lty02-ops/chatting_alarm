@@ -1,58 +1,61 @@
-# Chatting Alarm
+# 모두톡
 
-Spring Boot와 React로 만든 실시간 채팅 서비스입니다.
+1인 개발로 진행한 Spring Boot기반 채팅 서비스 프로젝트입니다.
 
-로컬 환경은 Docker Compose로 실행하고, 운영 환경은 Terraform, Kubernetes, GitHub Actions를 이용해 AWS EKS에 배포했습니다.
+약 2개월간 진행했으며, Kubernetes 기반으로 배포 환경을 구축했습니다.
 
 [![CI](https://github.com/lty02-ops/chatting_alarm/actions/workflows/ci.yml/badge.svg)](https://github.com/lty02-ops/chatting_alarm/actions/workflows/ci.yml)
 
+
 ## 주요 기능
 
-- Google, Naver, Kakao 소셜 로그인
-- WebSocket/STOMP 기반 실시간 채팅
-- 1:1 채팅과 단체 채팅방 생성
-- 친구 코드로 요청을 보내고 상대방이 수락하는 친구 추가 방식
-- 단체방 참여자 초대와 참여자 간 친구 요청
-- 온라인 상태와 현재 접속자 표시
-- 읽지 않은 메시지 알림
-- 파일 첨부, 다운로드 및 메시지 이모지 반응
-- 프로필 이름과 이미지 변경
+- Google, Naver, Kakao 소셜 로그인 기능
+- WebSocket/STOMP를 활용한 실시간 채팅 기능
+- 1:1 채팅과 단체 채팅방 생성 기능
+- 친구 코드를 이용해 요청을 보내고 상대방이 수락하는 친구 추가 방식
+- 단체방에 참여자 초대가 가능하고 참여자 간 친구 요청 가능
+- 온라인 상태와 현재 접속중인 이용자 목록 표시
+- 읽지 않은 메세지 알림 제공
+- 파일 첨부 및 다운로드, 이모지 첨부 기능
+- 프로필 이름과 이미지 변경 기능
 
 ## 아키텍처
 
 ### 전체 구성
 
-![Chatting Alarm AWS 아키텍처](image/Chatting_alarm_overall.png)
+![모두톡 AWS 아키텍처](image/Chatting_alarm_overall.png)
 
-DNS는 Route 53 대신 외부 DNS를 사용합니다. 사용자가 `app.chatting-alarm.p-e.kr` 또는 `api.chatting-alarm.p-e.kr`로 접속하면 ALB가 Kubernetes Ingress 규칙에 따라 프론트엔드와 백엔드로 요청을 나눠 보냅니다.
+외부 DNS에 프론트엔드와 백엔드 도메인을 각각 등록하고, Ingress의 규칙에 따라 ALB가 요청을 라우팅하도록 구성했습니다.
 
-프론트엔드와 백엔드는 각각 두 개의 Pod로 구성했습니다. 가용 영역 한곳에만 Pod가 몰리지 않도록 topology spread constraint를 설정했고, 유지보수 중 두 Pod가 동시에 다운되지 않도록 PodDisruptionBudget도 추가했습니다.
+프론트엔드와 백엔드는 각각 2개의 Pod로 배포했고, 가용영역 간 분산 배치를 위해 TopoLogy Spread Constraint를 적용했습니다. 노드 유지보수 시에는 동시에 두 Pod이 중단되지 않도록 PodDisruptionBudget을 설정했습니다.
 
 ### CI/CD
 
-![Chatting Alarm CI/CD Pipeline](image/Chatting_alarm_cicd.png)
+![모두톡 CI/CD Pipeline](image/Chatting_alarm_cicd.png)
 
-`main` 브랜치에 코드가 push되거나 Pull Request가 생성되면 백엔드 테스트와 프론트엔드 빌드를 실행합니다. 배포는 GitHub Actions에서 수동으로 실행하며, GitHub OIDC를 통해 AWS IAM Role을 맡아 Docker 이미지를 ECR에 업로드합니다. 이후 `kubectl set image`로 EKS Deployment의 컨테이너 이미지를 갱신하고 새로운 Pod를 배포합니다.
+**CI** - `main` 브랜치에 새 코드가 푸쉬되거나 Pull Request가 생성되면 백엔드 테스트와 프론트엔드 빌드를 실행합니다.
 
-AWS 인증에는 고정 Access Key 대신 GitHub OIDC를 사용했습니다.
+**CD** - 배포는 GitHub Actions에서 수동으로 실행하고, GitHub OIDC를 통해 AWS IAM Role 임시 자격 증명을 발급받아 ECR 및 EKS 접근 권한을 부여받습니다. 이후 새로운 코드를 Docker 이미지로 빌드해서 ECR에 업로드하고 `kubectl set image`로 EKS Deployment의 컨테이너 이미지 주소를 변경합니다.
+마지막으로 Kubernetes는 이 변경 사항을 감지하여 RollingUpdate 방식으로 새 Pod을 배포합니다.
+
 
 ### 프론트엔드 요청 흐름
 
-![Chatting Alarm Frontend Flow](image/Chatting_alarm_Frontend_Flow.png)
+![모두톡 Frontend Flow](image/Chatting_alarm_Frontend_Flow.png)
 
-사용자가 `app.chatting-alarm.p-e.kr`에 접속하면 외부 DNS를 통해 ALB 주소를 조회합니다. ALB는 ACM 인증서를 사용해 HTTPS 요청의 TLS 연결을 종료한 뒤, Ingress를 기반으로 생성된 호스트 라우팅 규칙에 따라 Frontend Service를 대상으로 요청을 처리합니다. 실제 트래픽은 ALB Target Group에 등록된 두 개의 React Pod 중 하나로 전달됩니다.
+사용자가 app.chatting-alarm.p-e.kr에 접속하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB로 HTTPS 요청을 보냅니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 라우팅 규칙에 따라 Frontend Target Group을 선택합니다. 이후 등록된 두 개의 React Pod 중 정상 상태인 Pod 중 하나로 요청을 전달합니다.
 
 ### 백엔드 REST API 요청 흐름
 
-![Chatting Alarm Backend REST API Flow](image/Chatting_alarm_Backend_REST_API_Flow.png)
+![모두톡 Backend REST API Flow](image/Chatting_alarm_Backend_REST_API_Flow.png)
 
-사용자가 `api.chatting-alarm.p-e.kr`로 REST API를 요청하면 외부 DNS를 통해 ALB 주소를 조회합니다. ALB는 ACM 인증서를 사용해 HTTPS 요청의 TLS 연결을 종료한 뒤, Ingress를 기반으로 생성된 호스트 라우팅 규칙에 따라 Backend Service를 대상으로 요청을 처리합니다. 실제 트래픽은 ALB Target Group에 등록된 두 개의 Spring Boot Pod 중 하나로 전달됩니다. 애플리케이션은 Redis를 실시간 이벤트 전달과 접속 상태 관리에 사용하고, 사용자·친구·채팅방·메시지 등의 영속 데이터는 RDS MySQL에 저장합니다.
+사용자가 `api.chatting-alarm.p-e.kr`로 REST API를 요청하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB로 HTTPS 요청을 보냅니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 라우팅 규칙에 따라 Backend Target Group을 선택합니다. 이후 등록된 두 개의 Spring Boot Pod 중 정상 상태인 Pod 하나로 요청을 전달합니다. 애플리케이션은 Redis를 이용해 실시간 이벤트를 전달하고 사용자·친구·채팅방·메세지 등의 데이터는 RDS MySQL에 저장합니다.
 
 ### 백엔드 WebSocket 요청 흐름
 
-![Chatting Alarm Backend WebSocket Flow](image/Chatting_alarm_Backend_WebSocket_Flow.png)
+![모두톡 Backend WebSocket Flow](image/Chatting_alarm_Backend_WebSocket_Flow.png)
 
-클라이언트가 `api.chatting-alarm.p-e.kr/ws`로 WSS 연결을 요청하면 ALB가 ACM 인증서를 사용해 TLS 연결을 종료합니다. 이후 Ingress를 기반으로 생성된 경로 라우팅 규칙에 따라 Backend Service를 대상으로 요청을 처리하며, 실제 연결은 ALB Target Group에 등록된 Spring Boot Pod 중 하나로 전달됩니다. 각 Pod는 Redis Pub/Sub을 통해 실시간 채팅 이벤트와 접속 상태를 공유하고, 채팅 메시지는 RDS MySQL에 저장합니다.
+브라우저가 api.chatting-alarm.p-e.kr/ws로 WSS 연결을 요청하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB에 연결합니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 및 경로 라우팅 규칙에 따라 Backend Target Group을 선택합니다. 이후 등록된 Spring Boot Pod 중 정상 상태인 Pod 하나로 연결을 전달합니다. 각 Pod는 Redis Pub/Sub을 이용해 채팅 메세지를 공유하고 접속 상태는 Redis에서 관리하며 채팅 메세지는 RDS MySQL에 저장합니다.
 
 ## 사용 기술
 
@@ -81,13 +84,26 @@ AWS 인증에는 고정 Access Key 대신 GitHub OIDC를 사용했습니다.
 - IaC/CI: Terraform, Kubernetes, Docker, GitHub Actions
 
 
-## 로컬 실행
+## 설치 및 실행 방법
 
-`.env.example`을 복사한 뒤 각 소셜 로그인 Client 정보를 입력합니다.
+Docker와 Docker Compose가 설치된 환경에서 실행합니다.
+
+### 1) Repository Clone
+
+```bash
+git clone https://github.com/lty02-ops/chatting_alarm.git
+cd chatting_alarm
+```
+
+### 2) 환경 변수 설정
+
+프로젝트 루트의 `.env.example`을 `.env`로 복사하고, 각 소셜 로그인 서비스에서 발급받은 Client ID와 Client Secret을 입력합니다.
 
 ```bash
 cp .env.example .env
 ```
+
+Windows PowerShell에서는 `Copy-Item .env.example .env`를 사용합니다.
 
 ```env
 GOOGLE_CLIENT_ID=
@@ -100,7 +116,7 @@ KAKAO_CLIENT_ID=
 KAKAO_CLIENT_SECRET=
 ```
 
-로컬 Callback URL은 다음과 같이 등록합니다.
+각 소셜 로그인 서비스에 다음 Callback URL을 등록합니다.
 
 ```text
 Google: http://localhost:8000/login/oauth2/code/google
@@ -108,133 +124,24 @@ Naver:  http://localhost:8000/login/oauth2/code/naver
 Kakao:  http://localhost:8000/login/oauth2/code/kakao
 ```
 
-실행:
+### 3) Docker Compose 실행
+
+프로젝트 루트에서 프론트엔드, 백엔드, MySQL을 빌드하고 실행합니다.
 
 ```bash
 docker compose up --build
 ```
 
-브라우저에서 `http://localhost:3000`으로 접속합니다. 백엔드는 `http://localhost:8000`에서 실행됩니다.
+### 4) 서비스 접속 및 종료
 
-종료:
+- 프론트엔드: http://localhost:3000
+- 백엔드: http://localhost:8000
+
+종료할 때는 프로젝트 루트에서 다음 명령어를 실행합니다.
 
 ```bash
 docker compose down
 ```
-
-## AWS 배포
-
-EKS, NAT Gateway, ALB, RDS Multi-AZ, ElastiCache 등은 실행 시간 동안 비용이 발생합니다.
-
-### Terraform
-
-Terraform state를 저장할 S3 버킷은 Terraform 밖에서 먼저 생성합니다. 버킷 이름은 전역에서 유일해야 하며, 생성한 이름을 `infra/aws/backend.tf`에 입력합니다.
-
-```bash
-aws s3api create-bucket \
-  --bucket chatting-alarm-terraform-state-UNIQUE_SUFFIX \
-  --region ap-northeast-2 \
-  --create-bucket-configuration LocationConstraint=ap-northeast-2
-
-aws s3api put-bucket-versioning \
-  --bucket chatting-alarm-terraform-state-UNIQUE_SUFFIX \
-  --versioning-configuration Status=Enabled
-```
-
-tfvars 파일을 만들고 인프라를 배포합니다.
-
-```bash
-cd infra/aws
-cp terraform.tfvars.example terraform.tfvars
-
-terraform init -reconfigure
-terraform fmt -check
-terraform validate
-terraform plan
-terraform apply
-```
-
-ACM 인증서가 `PENDING_VALIDATION` 상태라면 출력된 CNAME을 외부 DNS에 등록합니다.
-
-```bash
-terraform output acm_dns_validation_records
-```
-
-Terraform이 만든 `chatting-alarm/dev/backend` Secret에는 Google, Kakao, Naver의 Client ID와 Secret을 입력합니다. 실제 값은 `tfvars`, Kubernetes YAML 또는 Git 저장소에 넣지 않습니다.
-
-### 초기 이미지와 Kubernetes 배포
-
-최초 배포에서는 Kubernetes가 사용할 이미지가 ECR에 아직 없기 때문에 한 번 직접 올립니다. 아래 명령은 프로젝트 루트에서 실행합니다.
-
-```bash
-AWS_REGION=ap-northeast-2
-AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-IMAGE_TAG=bootstrap
-
-BACKEND_REPOSITORY="$(terraform -chdir=infra/aws output -raw backend_ecr_repository_url)"
-FRONTEND_REPOSITORY="$(terraform -chdir=infra/aws output -raw frontend_ecr_repository_url)"
-
-aws ecr get-login-password --region "$AWS_REGION" \
-  | docker login --username AWS --password-stdin \
-      "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
-
-docker build -t "$BACKEND_REPOSITORY:$IMAGE_TAG" backend
-docker build \
-  --build-arg VITE_API_BASE_URL=https://api.chatting-alarm.p-e.kr \
-  -t "$FRONTEND_REPOSITORY:$IMAGE_TAG" frontend
-
-docker push "$BACKEND_REPOSITORY:$IMAGE_TAG"
-docker push "$FRONTEND_REPOSITORY:$IMAGE_TAG"
-```
-
-EKS kubeconfig을 만든 뒤 매니페스트를 적용합니다.
-
-```bash
-aws eks update-kubeconfig \
-  --region ap-northeast-2 \
-  --name "$(terraform -chdir=infra/aws output -raw eks_cluster_name)"
-
-cd infra/kubernetes
-chmod +x apply.sh
-IMAGE_TAG=bootstrap ./apply.sh
-```
-
-`apply.sh`는 Terraform output을 읽어 ECR URL, RDS와 Redis endpoint, S3 bucket, IAM Role ARN, ACM ARN을 매니페스트에 각각 넣어줍니다.
-
-```bash
-kubectl get pods -n chatting-alarm
-kubectl get services -n chatting-alarm
-kubectl get ingress -n chatting-alarm
-```
-
-GitHub Actions에서 사용할 IAM Role ARN은 Repository Variable로 등록합니다.
-
-```bash
-terraform -chdir=infra/aws output -raw github_actions_role_arn
-```
-
-```text
-Settings → Secrets and variables → Actions → Variables
-Name: AWS_DEPLOY_ROLE_ARN
-```
-
-## 인프라 제거
-
-Ingress가 만든 ALB와 Security Group이 남아 있으면 VPC를 지울 수 없기 때문에 Kubernetes 리소스를 먼저 삭제합니다.
-
-```bash
-kubectl delete namespace chatting-alarm
-```
-
-ALB가 삭제된 것을 확인한 뒤 Terraform 리소스를 제거합니다.
-
-```bash
-cd infra/aws
-terraform plan -destroy
-terraform destroy
-```
-
-State용 S3 버킷은 Terraform 밖에서 만들었기 때문에 마지막에 별도로 비우고 삭제합니다.
 
 ## Trouble Shooting
 
@@ -254,11 +161,16 @@ Backend Pod에서 S3 파일 업로드 시 IRSA를 통한 AWS 임시 자격 증�
 
 두 개의 `t3.small` 노드에서 RollingUpdate를 실행할 때 기존 Pod와 새 Pod를 동시에 배치할 리소스가 부족해 새 Pod이 `Pending` 상태에 머물렀습니다. 그래서 노드를 `t3.medium`으로 바꾸고 프론트엔드 Deployment의 RollingUpdate 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 변경했습니다. 이를 통해 기존 Pod 하나를 먼저 종료하여 리소스를 확보한 후 새 Pod가 배포되도록 했습니다.
 
+## 배운 점
+- **Kubernetes 배포:** ALB와 Ingress를 활용한 요청 라우팅과 Pod 분산 배치 방법을 이해했습니다.
+- **Redis Pub/Sub:** 서로 다른 Pod에 연결된 사용자 간 채팅 메세지를 공유하는 방법을 배웠습니다.
+- **CI/CD 구성:** GitHub Actions와 OIDC를 활용해 AWS 인증과 배포 과정을 구성하는 경험을 했습니다.
+
 ## 아쉬운 점
 
-- HPA와 Cluster Autoscaler 또는 Karpenter를 적용하지 않아서 부하에 따라 Pod와 Worker Node 수가 자동으로 확장되지는 않습니다.
-- GitHub Actions는 이미지 교체까지 자동화하지만 Kubernetes 매니페스트 변경 전체를 자동으로 반영하지는 않습니다.
+- **성능 검증 부족:** 여러 사용자가 동시에 채팅하는 상황을 테스트하지 못했습니다. 이후에 부하 테스트를 진행하여 서버 자원 사용량이나 메세지 지연 시간 등을 확인하고 싶습니다.
 
+- **운영 경험 부족:** 실제 운영 환경에서 장기간 서비스를 운영해보지 못한 점이 아쉽습니다. 운영 중 발생할 수 있는 장애 상황 등에 대한 경험을 하며 서비스의 안정성을 높이고 싶습니다.
 ## 개발자
 
 - GitHub: [lty02-ops](https://github.com/lty02-ops)
