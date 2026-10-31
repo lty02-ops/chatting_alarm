@@ -19,6 +19,33 @@
 - 파일 첨부 및 다운로드, 이모지 첨부 기능
 - 프로필 이름과 이미지 변경 기능
 
+## 사용 기술
+
+### Application
+
+![Java 17](https://img.shields.io/badge/Java_17-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL_8-4479A1?style=flat-square&logo=mysql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
+
+### Infrastructure
+
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white)
+
+- Backend: Java 17, Spring Boot, Spring Security, JPA, WebSocket/STOMP
+- Frontend: React, Vite, SockJS, STOMP.js
+- Data: MySQL, Redis, S3
+- AWS: EKS, ECR, ALB, RDS, ElastiCache, S3, Secrets Manager, ACM, CloudWatch
+- IaC/CI: Terraform, Kubernetes, Docker, GitHub Actions
+
+
 ## 아키텍처
 
 ### 전체 구성
@@ -56,33 +83,6 @@
 ![모두톡 Backend WebSocket Flow](image/Chatting_alarm_Backend_WebSocket_Flow.png)
 
 브라우저가 api.chatting-alarm.p-e.kr/ws로 WSS 연결을 요청하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB에 연결합니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 및 경로 라우팅 규칙에 따라 Backend Target Group을 선택합니다. 이후 등록된 Spring Boot Pod 중 정상 상태인 Pod 하나로 연결을 전달합니다. 각 Pod는 Redis Pub/Sub을 이용해 채팅 메세지를 공유하고 접속 상태는 Redis에서 관리하며 채팅 메세지는 RDS MySQL에 저장합니다.
-
-## 사용 기술
-
-### Application
-
-![Java 17](https://img.shields.io/badge/Java_17-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
-![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white)
-![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL_8-4479A1?style=flat-square&logo=mysql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
-
-### Infrastructure
-
-![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white)
-![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white)
-![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
-![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white)
-
-- Backend: Java 17, Spring Boot, Spring Security, JPA, WebSocket/STOMP
-- Frontend: React, Vite, SockJS, STOMP.js
-- Data: MySQL, Redis, S3
-- AWS: EKS, ECR, ALB, RDS, ElastiCache, S3, Secrets Manager, ACM, CloudWatch
-- IaC/CI: Terraform, Kubernetes, Docker, GitHub Actions
-
 
 ## 설치 및 실행 방법
 
@@ -145,21 +145,37 @@ docker compose down
 
 ## Trouble Shooting
 
-### ALB Controller가 시작되지 않던 문제
+### ALB Controller 시작 실패
 
-처음 ALB Controller를 배포했을 때 VPC ID를 EC2 Instance Metadata에서 가져오지 못해 `failed to get VPC ID ec2imds: GetMetadata context deadline exceeded`가 발생했습니다. IMDS 요청이 시간 초과되면서 Controller가 실행에 필요한 VPC ID를 자동으로 확인하지 못한 것이 원인이었습니다. 그래서 Terraform의 `vpc_id` output을 `apply.sh`에서 가져와 `--aws-vpc-id=${VPC_ID}`로 Controller에 전달했습니다.
+| 구분 | 내용 |
+|---|---|
+| 문제 | ALB Controller가 시작되지 않음 |
+| 원인 | IMDS 요청 시간 초과로 VPC ID 조회 실패 |
+| 해결 | Terraform output에서 VPC ID를 가져와 Controller에 직접 전달 |
 
 ### GitHub Actions OIDC 인증 실패
 
-GitHub Actions에서 AWS IAM Role을 사용하려 했지만, Trust Policy의 `sub` 조건이 실제 GitHub OIDC 토큰의 형식과 일치하지 않아 인증에 실패했습니다. IAM Trust Policy를 확인하여 잘못 설정된 `sub` 값을 발견했고, `repo:lty02-ops/chatting_alarm:ref:refs/heads/main` 형식으로 수정하여 OIDC 인증 문제를 해결했습니다.
+| 구분 | 내용 |
+|---|---|
+| 문제 | GitHub Actions에서 AWS 인증 실패 |
+| 원인 | IAM Trust Policy의 `sub` 조건과 실제 토큰 불일치 |
+| 해결 | `sub` 값을 실제 저장소와 브랜치 형식에 맞게 수정 |
 
-### EKS 환경에서 S3 파일 업로드 실패
+### EKS에서 S3 업로드 실패
 
-Backend Pod에서 S3 파일 업로드 시 IRSA를 통한 AWS 임시 자격 증명을 가져오지 못해 업로드에 실패했습니다. 원인을 확인한 결과 S3 SDK는 존재했지만 STS SDK 의존성이 없어 Web Identity Token을 임시 자격 증명으로 교환하는 과정에 문제가 있었습니다. pom.xml에 AWS STS SDK 의존성을 추가하여 IRSA를 통한 S3 업로드가 정상적으로 동작하도록 해결했습니다.
+| 구분 | 내용 |
+|---|---|
+| 문제 | Backend Pod에서 S3 파일 업로드 실패 |
+| 원인 | STS SDK 의존성 누락으로 임시 자격 증명 발급 실패 |
+| 해결 | AWS STS SDK 의존성 추가 |
 
-### RollingUpdate 중 새 Pod가 Pending 상태로 멈춘 문제
+### RollingUpdate 중 새 Pod 대기
 
-두 개의 `t3.small` 노드에서 RollingUpdate를 실행할 때 기존 Pod와 새 Pod를 동시에 배치할 리소스가 부족해 새 Pod이 `Pending` 상태에 머물렀습니다. 그래서 노드를 `t3.medium`으로 바꾸고 프론트엔드 Deployment의 RollingUpdate 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 변경했습니다. 이를 통해 기존 Pod 하나를 먼저 종료하여 리소스를 확보한 후 새 Pod가 배포되도록 했습니다.
+| 구분 | 내용 |
+|---|---|
+| 문제 | 새 Pod가 `Pending` 상태에 머무름 |
+| 원인 | 기존 Pod와 새 Pod를 동시에 실행할 노드 자원 부족 |
+| 해결 | 노드를 `t3.medium`으로 변경하고 `maxUnavailable: 1`, `maxSurge: 0` 적용 |
 
 ## 배운 점
 - **Kubernetes 배포:** ALB와 Ingress를 활용한 요청 라우팅과 Pod 분산 배치 방법을 이해했습니다.
