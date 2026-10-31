@@ -149,33 +149,33 @@ docker compose down
 
 | 구분 | 내용 |
 |---|---|
-| 문제 | ALB Controller가 시작되지 않음 |
-| 원인 | IMDS 요청 시간 초과로 VPC ID 조회 실패 |
-| 해결 | Terraform output에서 VPC ID를 가져와 Controller에 직접 전달 |
+| 문제 | ALB Controller 실행 시 `failed to get VPC ID ec2imds: GetMetadata context deadline exceeded` 오류가 발생했습니다. |
+| 원인 | EC2 Instance Metadata(IMDS) 요청이 시간 초과되어 Controller가 실행에 필요한 VPC ID를 가져오지 못했습니다. |
+| 해결 | `apply.sh`에서 Terraform의 `vpc_id` output을 읽고, `--aws-vpc-id=${VPC_ID}` 옵션으로 Controller에 직접 전달했습니다. |
 
 ### GitHub Actions OIDC 인증 실패
 
 | 구분 | 내용 |
 |---|---|
-| 문제 | GitHub Actions에서 AWS 인증 실패 |
-| 원인 | IAM Trust Policy의 `sub` 조건과 실제 토큰 불일치 |
-| 해결 | `sub` 값을 실제 저장소와 브랜치 형식에 맞게 수정 |
+| 문제 | GitHub Actions 배포 과정에서 AWS IAM Role 인증에 실패했습니다. |
+| 원인 | IAM Trust Policy의 `sub` 조건이 실제 GitHub OIDC 토큰의 값과 일치하지 않았습니다. |
+| 해결 | Trust Policy의 `sub` 값을 `repo:lty02-ops/chatting_alarm:ref:refs/heads/main`으로 수정해 해당 저장소의 `main` 브랜치에서 인증할 수 있도록 했습니다. |
 
 ### EKS에서 S3 업로드 실패
 
 | 구분 | 내용 |
 |---|---|
-| 문제 | Backend Pod에서 S3 파일 업로드 실패 |
-| 원인 | STS SDK 의존성 누락으로 임시 자격 증명 발급 실패 |
-| 해결 | AWS STS SDK 의존성 추가 |
+| 문제 | EKS의 Backend Pod에서 AWS 임시 자격 증명을 가져오지 못해 S3 파일 업로드에 실패했습니다. |
+| 원인 | S3 SDK는 있었지만 STS SDK 의존성이 없어, IRSA의 Web Identity Token을 임시 자격 증명으로 교환하지 못했습니다. |
+| 해결 | `pom.xml`에 AWS STS SDK 의존성을 추가한 뒤, IRSA를 통한 S3 파일 업로드가 정상적으로 동작하는 것을 확인했습니다. |
 
 ### RollingUpdate 중 새 Pod 대기
 
 | 구분 | 내용 |
 |---|---|
-| 문제 | 새 Pod가 `Pending` 상태에 머무름 |
-| 원인 | 기존 Pod와 새 Pod를 동시에 실행할 노드 자원 부족 |
-| 해결 | 노드를 `t3.medium`으로 변경하고 `maxUnavailable: 1`, `maxSurge: 0` 적용 |
+| 문제 | 두 개의 `t3.small` 노드에서 배포를 진행할 때 새 Pod가 `Pending` 상태에 머물렀습니다. |
+| 원인 | 기존 Pod와 새 Pod를 동시에 실행할 노드 자원이 부족했습니다. |
+| 해결 | 노드를 `t3.medium`으로 변경하고, 프론트엔드의 RollingUpdate 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 설정했습니다. 기존 Pod 하나를 먼저 종료해 자원을 확보한 뒤 새 Pod를 배포하도록 했습니다. |
 
 ## 배운 점
 - **Kubernetes 배포:** ALB와 Ingress를 활용한 요청 라우팅과 Pod 분산 배치 방법을 이해했습니다.
