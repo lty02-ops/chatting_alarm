@@ -21,7 +21,7 @@
 
 ## 사용 기술
 
-### Application
+### App
 
 ![Java 17](https://img.shields.io/badge/Java_17-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
@@ -31,8 +31,7 @@
 ![MySQL](https://img.shields.io/badge/MySQL_8-4479A1?style=flat-square&logo=mysql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
 
-### Infrastructure
-
+### Infra
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white)
 ![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white)
@@ -147,35 +146,35 @@ docker compose down
 
 ### ALB Controller 시작 실패
 
-| 구분 | 내용 |
+| &nbsp;구&#8288;분&nbsp; | 내용 |
 |---|---|
-| 문제 | ALB Controller 실행 시 `failed to get VPC ID ec2imds: GetMetadata context deadline exceeded` 오류가 발생했습니다. |
-| 원인 | EC2 Instance Metadata(IMDS) 요청이 시간 초과되어 Controller가 실행에 필요한 VPC ID를 가져오지 못했습니다. |
-| 해결 | `apply.sh`에서 Terraform의 `vpc_id` output을 읽고, `--aws-vpc-id=${VPC_ID}` 옵션으로 Controller에 직접 전달했습니다. |
+| &nbsp;문&#8288;제&nbsp; | ALB Controller 실행 시 `failed to get VPC ID ec2imds: GetMetadata context deadline exceeded` 오류가 발생했습니다. |
+| &nbsp;원&#8288;인&nbsp; | EC2 Instance Metadata(IMDS) 요청이 시간 초과되어 Controller가 실행에 필요한 VPC ID를 가져오지 못했습니다. |
+| &nbsp;해&#8288;결&nbsp; | `apply.sh`에서 Terraform의 `vpc_id` output을 읽고, `--aws-vpc-id=${VPC_ID}` 옵션으로 Controller에 직접 전달했습니다. |
 
 ### GitHub Actions OIDC 인증 실패
 
-| 구분 | 내용 |
+| &nbsp;구&#8288;분&nbsp; | 내용 |
 |---|---|
-| 문제 | GitHub Actions 배포 과정에서 AWS IAM Role 인증에 실패했습니다. |
-| 원인 | IAM Trust Policy의 `sub` 조건이 실제 GitHub OIDC 토큰의 값과 일치하지 않았습니다. |
-| 해결 | Trust Policy의 `sub` 값을 `repo:lty02-ops/chatting_alarm:ref:refs/heads/main`으로 수정해 해당 저장소의 `main` 브랜치에서 인증할 수 있도록 했습니다. |
+| &nbsp;문&#8288;제&nbsp; | GitHub Actions 배포 과정에서 AWS IAM Role 인증에 실패했습니다. |
+| &nbsp;원&#8288;인&nbsp; | IAM Trust Policy의 `sub` 조건이 실제 GitHub OIDC 토큰의 값과 일치하지 않았습니다. |
+| &nbsp;해&#8288;결&nbsp; | Trust Policy의 `sub` 값을 `repo:lty02-ops/chatting_alarm:ref:refs/heads/main`으로 수정해 해당 저장소의 `main` 브랜치에서 인증할 수 있도록 했습니다. |
 
 ### EKS에서 S3 업로드 실패
 
-| 구분 | 내용 |
+| &nbsp;구&#8288;분&nbsp; | 내용 |
 |---|---|
-| 문제 | EKS의 Backend Pod에서 AWS 임시 자격 증명을 가져오지 못해 S3 파일 업로드에 실패했습니다. |
-| 원인 | S3 SDK는 있었지만 STS SDK 의존성이 없어, IRSA의 Web Identity Token을 임시 자격 증명으로 교환하지 못했습니다. |
-| 해결 | `pom.xml`에 AWS STS SDK 의존성을 추가한 뒤, IRSA를 통한 S3 파일 업로드가 정상적으로 동작하는 것을 확인했습니다. |
+| &nbsp;문&#8288;제&nbsp; | EKS의 Backend Pod에서 AWS 임시 자격 증명을 가져오지 못해 S3 파일 업로드에 실패했습니다. |
+| &nbsp;원&#8288;인&nbsp; | S3 SDK는 있었지만 STS SDK 의존성이 없어, IRSA의 Web Identity Token을 임시 자격 증명으로 교환하지 못했습니다. |
+| &nbsp;해&#8288;결&nbsp; | `pom.xml`에 AWS STS SDK 의존성을 추가한 뒤, IRSA를 통한 S3 파일 업로드가 정상적으로 동작하는 것을 확인했습니다. |
 
 ### RollingUpdate 중 새 Pod 대기
 
-| 구분 | 내용 |
+| &nbsp;구&#8288;분&nbsp; | 내용 |
 |---|---|
-| 문제 | 두 개의 `t3.small` 노드에서 배포를 진행할 때 새 Pod가 `Pending` 상태에 머물렀습니다. |
-| 원인 | 기존 Pod와 새 Pod를 동시에 실행할 노드 자원이 부족했습니다. |
-| 해결 | 노드를 `t3.medium`으로 변경하고, 프론트엔드의 RollingUpdate 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 설정했습니다. 기존 Pod 하나를 먼저 종료해 자원을 확보한 뒤 새 Pod를 배포하도록 했습니다. |
+| &nbsp;문&#8288;제&nbsp; | 두 개의 `t3.small` 노드에서 배포를 진행할 때 새 Pod가 `Pending` 상태에 머물렀습니다. |
+| &nbsp;원&#8288;인&nbsp; | 기존 Pod와 새 Pod를 동시에 실행할 노드 자원이 부족했습니다. |
+| &nbsp;해&#8288;결&nbsp; | 노드를 `t3.medium`으로 변경하고, 프론트엔드의 RollingUpdate 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 설정했습니다. 기존 Pod 하나를 먼저 종료해 자원을 확보한 뒤 새 Pod를 배포하도록 했습니다. |
 
 ## 배운 점
 - **Kubernetes 배포:** ALB와 Ingress를 활용한 요청 라우팅과 Pod 분산 배치 방법을 이해했습니다.
