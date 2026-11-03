@@ -535,6 +535,7 @@ body {
 .conversation .messages { padding: 16px 0 22px; }
 
 .conversation .message {
+  width: 100%;
   max-width: none;
   padding: 4px 20px;
   gap: 14px;
@@ -549,7 +550,7 @@ body {
 .conversation .message p,
 .conversation .message.mine p {
   display: inline-block;
-  max-width: min(680px, 88%);
+  max-width: min(680px, 100%);
   margin: 5px 0 0;
   padding: 9px 12px;
   border-radius: 4px 14px 14px 14px;
@@ -557,6 +558,9 @@ body {
   color: #dbdee1;
   font-weight: 400;
   line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .conversation .message.mine { flex-direction: row; }
