@@ -362,7 +362,10 @@ body {
 }
 
 .brand strong,
-.profile-block > div,
+.profile-block > div {
+  display: none;
+}
+
 .profile-nav .rail-button,
 .rail-logout {
   font-size: 0;
