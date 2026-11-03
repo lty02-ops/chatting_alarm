@@ -564,7 +564,7 @@ body {
 }
 
 .conversation .message.mine { flex-direction: row; }
-.conversation .message.mine .message-avatar { display: grid; }
+.conversation .message.mine .message-avatar { display: none; }
 .conversation .message.mine p { background: rgba(88, 101, 242, .24); }
 .conversation .message time { color: var(--ca-text-faint); }
 
