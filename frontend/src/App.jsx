@@ -655,7 +655,7 @@ export default function App() {
           <button className="avatar profile-image-button" type="button" onClick={openProfileModal} title="프로필 편집">
             {currentUser?.profileImageUrl ? <img src={profileImageSrc(currentUser.profileImageUrl)} alt="내 프로필" /> : nickname.slice(0, 1).toUpperCase()}
           </button>
-          <div><strong>{nickname}</strong><small><i /> 온라인</small><small className="friend-code">내 코드 {currentUser?.friendCode || '-'}</small></div>
+          <strong className="profile-name" title={nickname}>{nickname}</strong>
         </div>
         <nav className="profile-nav">
           <button className="rail-button" type="button" onClick={() => setSettingsOpen(true)}>⚙ 설정</button>

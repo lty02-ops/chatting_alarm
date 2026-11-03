@@ -396,6 +396,8 @@ body {
 }
 
 .profile-block {
+  flex-direction: column;
+  gap: 8px;
   width: 58px;
   margin: 0;
   padding: 8px 4px 14px;
@@ -410,6 +412,17 @@ body {
   background: #3f4147;
 }
 
+.profile-block .profile-name {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .profile-nav {
   width: 100%;
   margin-top: auto;
@@ -417,8 +430,10 @@ body {
 
 .profile-nav .rail-button,
 .rail-logout {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   width: 44px;
   height: 44px;
   margin: 8px auto 0;
