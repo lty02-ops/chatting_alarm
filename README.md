@@ -77,9 +77,7 @@
 
 브라우저가 api.chatting-alarm.p-e.kr/ws로 WSS 연결을 요청하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB에 연결합니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 및 경로 라우팅 규칙에 따라 Backend Target Group을 선택합니다. 이후 등록된 Spring Boot Pod 중 정상 상태인 Pod 하나로 연결을 전달합니다. 각 Pod는 Redis Pub/Sub을 이용해 채팅 메세지를 공유하고 접속 상태는 Redis에서 관리하며 채팅 메세지는 RDS MySQL에 저장합니다.
 
-## 설치 및 실행 방법
-
-Docker와 Docker Compose가 설치된 환경에서 실행합니다.
+## 배포 및 실행 방법
 
 ### 1) Repository Clone
 
@@ -90,55 +88,53 @@ cd chatting_alarm
 
 ### 2) 환경 변수 설정
 
-프로젝트 루트의 `.env.example`을 `.env`로 복사하고, 각 소셜 로그인 서비스에서 발급받은 Client ID와 Client Secret을 입력합니다.
+프로젝트 루트의 `.env.example`을 `.env`로 복사하고 Google·Kakao·Naver 로그인 정보를 입력합니다.
 
 ```bash
 cp .env.example .env
 ```
 
-Windows PowerShell에서는 `Copy-Item .env.example .env`를 사용합니다.
-
-```env
+```dotenv
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-
-NAVER_CLIENT_ID=
-NAVER_CLIENT_SECRET=
-
 KAKAO_CLIENT_ID=
 KAKAO_CLIENT_SECRET=
+NAVER_CLIENT_ID=
+NAVER_CLIENT_SECRET=
 ```
 
-각 소셜 로그인 서비스에 다음 Callback URL을 등록합니다.
+### 3) AWS 배포
+
+AWS 자격 증명과 Terraform S3 backend를 설정하고, [배포 가이드](docs/deployment.md)에 따라 인프라 생성, 시크릿 업로드와 ECR 이미지 준비를 완료합니다. 이후 Bash/WSL 환경에서 업로드한 이미지 태그를 지정해 실행합니다.
+
+```bash
+export IMAGE_TAG="$(git rev-parse HEAD)"
+aws eks update-kubeconfig --name chatting_alarm-eks --region ap-northeast-2
+bash infra/kubernetes/apply.sh
+kubectl get pods,ingress -n chatting-alarm
+```
+
+Ingress의 `ADDRESS`를 DNS의 `app`, `api` CNAME 대상으로 등록합니다. Google·Kakao·Naver 개발자 콘솔에는 다음 Callback URL을 각각 등록합니다.
 
 ```text
-Google: http://localhost:8000/login/oauth2/code/google
-Naver:  http://localhost:8000/login/oauth2/code/naver
-Kakao:  http://localhost:8000/login/oauth2/code/kakao
+https://api.chatting-alarm.p-e.kr/login/oauth2/code/google
+https://api.chatting-alarm.p-e.kr/login/oauth2/code/kakao
+https://api.chatting-alarm.p-e.kr/login/oauth2/code/naver
 ```
 
-### 3) Docker Compose 실행
+### 4) 서비스 실행
 
-프로젝트 루트에서 프론트엔드, 백엔드, MySQL을 빌드하고 실행합니다.
+배포 후 [서비스 접속 주소](https://app.chatting-alarm.p-e.kr)에 접속하고 Google, Kakao 또는 Naver로 로그인합니다.
 
-```bash
-docker compose up --build
-```
+### 5) 변경 사항 배포
 
-### 4) 서비스 접속 및 종료
+배포 가이드에 따라 GitHub Actions 변수 `AWS_DEPLOY_ROLE_ARN`을 등록한 뒤, 코드 변경 후 `main`에 push하고 **Build and deploy → Run workflow → main**을 선택합니다.
 
-- 프론트엔드: http://localhost:3000
-- 백엔드: http://localhost:8000
-
-종료할 때는 프로젝트 루트에서 다음 명령어를 실행합니다.
-
-```bash
-docker compose down
-```
+인프라, 환경 변수 또는 도메인이 바뀌면 Terraform, 시크릿과 DNS 설정도 별도로 갱신합니다.
 
 ## Trouble Shooting
 
-### ALB Controller 시작 실패
+### AWS Load Balancer Controller 시작 실패
 
 | &nbsp;구&#8288;분&nbsp; | 내용 |
 |---|---|
@@ -152,7 +148,7 @@ docker compose down
 |---|---|
 | &nbsp;문&#8288;제&nbsp; | GitHub Actions 배포 과정에서 AWS IAM Role 인증에 실패했습니다. |
 | &nbsp;원&#8288;인&nbsp; | IAM Trust Policy의 `sub` 조건이 실제 GitHub OIDC 토큰의 값과 일치하지 않았습니다. |
-| &nbsp;해&#8288;결&nbsp; | Trust Policy의 `sub` 값을 `repo:lty02-ops/chatting_alarm:ref:refs/heads/main`으로 수정해 해당 저장소의 `main` 브랜치에서 인증할 수 있도록 했습니다. |
+| &nbsp;해&#8288;결&nbsp; | GitHub API의 `sub_claim_prefix`를 조회하고 `:ref:refs/heads/main`을 붙여 Trust Policy에 반영했습니다. 현재 저장소는 `repo:lty02-ops@246391481/chatting_alarm@1126997863:ref:refs/heads/main`을 사용합니다. Terraform 변경을 적용한 뒤 배포를 재실행했습니다. |
 
 ### EKS에서 S3 업로드 실패
 
@@ -162,7 +158,7 @@ docker compose down
 | &nbsp;원&#8288;인&nbsp; | S3 SDK는 있었지만 STS SDK 의존성이 없어, IRSA의 Web Identity Token을 임시 자격 증명으로 교환하지 못했습니다. |
 | &nbsp;해&#8288;결&nbsp; | `pom.xml`에 AWS STS SDK 의존성을 추가한 뒤, IRSA를 통한 S3 파일 업로드가 정상적으로 동작하는 것을 확인했습니다. |
 
-### RollingUpdate 중 새 Pod 대기
+### RollingUpdate 중 Pod Pending 발생
 
 | &nbsp;구&#8288;분&nbsp; | 내용 |
 |---|---|
@@ -180,6 +176,7 @@ docker compose down
 - **성능 검증 부족:** 여러 사용자가 동시에 채팅하는 상황을 테스트하지 못했습니다. 이후에 부하 테스트를 진행하여 서버 자원 사용량이나 메세지 지연 시간 등을 확인하고 싶습니다.
 
 - **운영 경험 부족:** 실제 운영 환경에서 장기간 서비스를 운영해보지 못한 점이 아쉽습니다. 운영 중 발생할 수 있는 장애 상황 등에 대한 경험을 하며 서비스의 안정성을 높이고 싶습니다.
+
 ## 개발자
 
 - GitHub: [lty02-ops](https://github.com/lty02-ops)
