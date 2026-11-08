@@ -1,0 +1,82 @@
+// Separate Pipeline-from-SCM job, fixed to */main; no automatic triggers.
+pipeline {
+    agent { label 'chatting-alarm-deploy' }
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 45, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+    environment {
+        AWS_REGION = 'ap-northeast-2'
+        AWS_DEFAULT_REGION = 'ap-northeast-2'
+        EKS_CLUSTER_NAME = 'chatting_alarm-eks'
+        K8S_NAMESPACE = 'chatting-alarm'
+        VITE_API_BASE_URL = 'https://api.chatting-alarm.p-e.kr'
+    }
+    stages {
+        stage('Checkout main') {
+            steps {
+                deleteDir()
+                checkout scm
+                script {
+                    env.IMAGE_TAG = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                    sh 'test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)"'
+                    env.DOCKER_CONFIG = "${pwd(tmp: true)}/docker"
+                    env.KUBECONFIG = "${pwd(tmp: true)}/kubeconfig"
+                }
+            }
+        }
+        stage('Verify release') {
+            steps {
+                dir('backend') { sh 'mvn --batch-mode test' }
+                dir('frontend') {
+                    sh 'npm ci'
+                    sh 'npm run build'
+                }
+            }
+            post {
+                always { junit testResults: 'backend/target/surefire-reports/*.xml', allowEmptyResults: true }
+            }
+        }
+        stage('Build and push images') {
+            steps {
+                script {
+                    env.AWS_ACCOUNT_ID = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
+                    env.REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
+                }
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "$DOCKER_CONFIG"
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$REGISTRY"
+docker build --platform linux/amd64 -t "$REGISTRY/chatting_alarm-backend:$IMAGE_TAG" backend
+docker build --platform linux/amd64 --build-arg VITE_API_BASE_URL="$VITE_API_BASE_URL" -t "$REGISTRY/chatting_alarm-frontend:$IMAGE_TAG" frontend
+docker push "$REGISTRY/chatting_alarm-backend:$IMAGE_TAG"
+docker push "$REGISTRY/chatting_alarm-frontend:$IMAGE_TAG"
+'''
+            }
+        }
+        stage('Deploy to EKS') {
+            steps {
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
+aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+kubectl -n "$K8S_NAMESPACE" get deployment chatting-alarm-backend chatting-alarm-frontend
+kubectl -n "$K8S_NAMESPACE" set image deployment/chatting-alarm-backend backend="$REGISTRY/chatting_alarm-backend:$IMAGE_TAG"
+kubectl -n "$K8S_NAMESPACE" set image deployment/chatting-alarm-frontend frontend="$REGISTRY/chatting_alarm-frontend:$IMAGE_TAG"
+kubectl -n "$K8S_NAMESPACE" rollout status deployment/chatting-alarm-backend --timeout=5m
+kubectl -n "$K8S_NAMESPACE" rollout status deployment/chatting-alarm-frontend --timeout=5m
+'''
+            }
+        }
+    }
+    post {
+        always {
+            sh '''#!/usr/bin/env bash
+set -eu
+if [ -n "${DOCKER_CONFIG:-}" ]; then rm -f -- "$DOCKER_CONFIG/config.json"; fi
+if [ -n "${KUBECONFIG:-}" ]; then rm -f -- "$KUBECONFIG"; fi
+'''
+        }
+    }
+}
