@@ -4,9 +4,6 @@
 
 약 2개월간 진행했으며, Kubernetes 기반으로 배포 환경을 구축했습니다.
 
-[![CI](https://github.com/lty02-ops/chatting_alarm/actions/workflows/ci.yml/badge.svg)](https://github.com/lty02-ops/chatting_alarm/actions/workflows/ci.yml)
-
-
 ## 주요 기능
 
 - Google, Naver, Kakao 소셜 로그인 기능
@@ -35,7 +32,7 @@
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white)
 ![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white)
-![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+![Jenkins](https://img.shields.io/badge/Jenkins-D24939?style=flat-square&logo=jenkins&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white)
 
 
@@ -53,9 +50,9 @@
 
 ![모두톡 CI/CD Pipeline](image/Chatting_alarm_cicd.png)
 
-**CI** - `main` 브랜치에 새 코드가 푸쉬되거나 Pull Request가 생성되면 백엔드 테스트와 프론트엔드 빌드를 실행합니다.
+**CI** - `main` 브랜치에 새 코드가 push되거나 Pull Request가 생성되면 Jenkins에서 백엔드 테스트와 프론트엔드 빌드를 실행합니다.
 
-**CD** - 배포는 GitHub Actions에서 수동으로 실행하고, GitHub OIDC를 통해 AWS IAM Role 임시 자격 증명을 발급받아 ECR 및 EKS 접근 권한을 부여받습니다. 이후 새로운 코드를 Docker 이미지로 빌드해서 ECR에 업로드하고 `kubectl set image`로 EKS Deployment의 컨테이너 이미지 주소를 변경합니다.
+**CD** - 배포는 Jenkins에서 수동으로 실행합니다. AWS 인증 후 새로운 코드를 Docker 이미지로 빌드해서 ECR에 업로드하고 `kubectl set image`로 EKS Deployment의 컨테이너 이미지 주소를 변경합니다.
 마지막으로 Kubernetes는 이 변경 사항을 감지하여 RollingUpdate 방식으로 새 Pod을 배포합니다.
 
 
@@ -128,7 +125,7 @@ https://api.chatting-alarm.p-e.kr/login/oauth2/code/naver
 
 ### 5) 변경 사항 배포
 
-배포 가이드에 따라 GitHub Actions 변수 `AWS_DEPLOY_ROLE_ARN`을 등록한 뒤, 코드 변경 후 `main`에 push하고 **Build and deploy → Run workflow → main**을 선택합니다.
+코드 변경 후 `main`에 push하고 Jenkins 배포 작업에서 **Build Now**를 선택합니다.
 
 인프라, 환경 변수 또는 도메인이 바뀌면 Terraform, 시크릿과 DNS 설정도 별도로 갱신합니다.
 
@@ -141,14 +138,6 @@ https://api.chatting-alarm.p-e.kr/login/oauth2/code/naver
 | &nbsp;문&#8288;제&nbsp; | ALB Controller 실행 시 `failed to get VPC ID ec2imds: GetMetadata context deadline exceeded` 오류가 발생했습니다. |
 | &nbsp;원&#8288;인&nbsp; | EC2 Instance Metadata(IMDS) 요청이 시간 초과되어 Controller가 실행에 필요한 VPC ID를 가져오지 못했습니다. |
 | &nbsp;해&#8288;결&nbsp; | `apply.sh`에서 Terraform의 `vpc_id` output을 읽고, `--aws-vpc-id=${VPC_ID}` 옵션으로 Controller에 직접 전달했습니다. |
-
-### GitHub Actions OIDC 인증 실패
-
-| &nbsp;구&#8288;분&nbsp; | 내용 |
-|---|---|
-| &nbsp;문&#8288;제&nbsp; | GitHub Actions 배포 과정에서 AWS IAM Role 인증에 실패했습니다. |
-| &nbsp;원&#8288;인&nbsp; | IAM Trust Policy의 `sub` 조건이 실제 GitHub OIDC 토큰의 값과 일치하지 않았습니다. |
-| &nbsp;해&#8288;결&nbsp; | GitHub API의 `sub_claim_prefix`를 조회하고 `:ref:refs/heads/main`을 붙여 Trust Policy에 반영했습니다. 현재 저장소는 `repo:lty02-ops@246391481/chatting_alarm@1126997863:ref:refs/heads/main`을 사용합니다. Terraform 변경을 적용한 뒤 배포를 재실행했습니다. |
 
 ### EKS에서 S3 업로드 실패
 
@@ -169,7 +158,7 @@ https://api.chatting-alarm.p-e.kr/login/oauth2/code/naver
 ## 배운 점
 - **Kubernetes 배포:** ALB와 Ingress를 활용한 요청 라우팅과 Pod 분산 배치 방법을 이해했습니다.
 - **Redis Pub/Sub:** 서로 다른 Pod에 연결된 사용자 간 채팅 메세지를 공유하는 방법을 배웠습니다.
-- **CI/CD 구성:** GitHub Actions와 OIDC를 활용해 AWS 인증과 배포 과정을 구성하는 경험을 했습니다.
+- **CI/CD 구성:** Jenkins로 테스트와 빌드 과정을 자동화하고, AWS 배포 파이프라인을 구성하는 경험을 했습니다.
 
 ## 아쉬운 점
 
