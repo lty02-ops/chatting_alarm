@@ -42,9 +42,11 @@
 
 ![모두톡 AWS 아키텍처](image/Chatting_alarm_overall.png)
 
-외부 DNS에 프론트엔드와 백엔드 도메인을 각각 등록하고, Ingress의 규칙에 따라 ALB가 요청을 라우팅하도록 구성했습니다.
+외부 DNS에 프론트엔드, 백엔드, Grafana 도메인을 각각 등록하고, 앱 ALB는 Ingress의 규칙에 따라 프론트엔드와 백엔드 Pod로 요청을 전달합니다. Grafana는 별도 ALB를 통해 지정한 관리자 IP에서만 접근이 가능하도록 구성했습니다.
 
-프론트엔드와 백엔드는 각각 2개의 Pod로 배포했고, 가용영역 간 분산 배치를 위해 TopoLogy Spread Constraint를 적용했습니다. 노드 유지보수 시에는 동시에 두 Pod이 중단되지 않도록 PodDisruptionBudget을 설정했습니다.
+프론트엔드와 백엔드는 각각 2개의 Pod로 배포했고, 가용영역 간 분산 배치를 위해 Topology Spread Constraints를 적용했습니다. 노드 유지보수 시에는 동시에 두 Pod가 중단되지 않도록 PodDisruptionBudget을 설정했습니다.
+
+Prometheus로 백엔드와 Kubernetes 메트릭을 수집하고 Grafana에서 이를 시각화합니다. 모니터링 데이터는 EBS에 저장하고 CloudWatch는 로그 수집과 AWS 리소스 경보에 사용합니다.
 
 ### CI/CD
 
@@ -74,60 +76,15 @@
 
 브라우저가 api.chatting-alarm.p-e.kr/ws로 WSS 연결을 요청하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB에 연결합니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 및 경로 라우팅 규칙에 따라 Backend Target Group을 선택합니다. 이후 등록된 Spring Boot Pod 중 정상 상태인 Pod 하나로 연결을 전달합니다. 각 Pod는 Redis Pub/Sub을 이용해 채팅 메세지를 공유하고 접속 상태는 Redis에서 관리하며 채팅 메세지는 RDS MySQL에 저장합니다.
 
-## 배포 및 실행 방법
+## 배포 방법
 
-### 1) Repository Clone
+Terraform으로 AWS 인프라를 구성하고, Docker 이미지를 ECR에 올린 뒤 EKS에 배포합니다. 최초 배포는 `infra/kubernetes/apply.sh`로 진행하며, 이후 코드 변경은 Jenkins 배포 작업에서 수동으로 반영합니다.
 
-```bash
-git clone https://github.com/lty02-ops/chatting_alarm.git
-cd chatting_alarm
-```
+환경 설정과 배포 명령은 [AWS 배포 가이드](docs/deployment.md)에 정리했습니다. 현재는 운영 비용을 줄이기 위해 배포를 중단한 상태입니다.
 
-### 2) 환경 변수 설정
+## 모니터링
 
-프로젝트 루트의 `.env.example`을 `.env`로 복사하고 Google·Kakao·Naver 로그인 정보를 입력합니다.
-
-```bash
-cp .env.example .env
-```
-
-```dotenv
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-KAKAO_CLIENT_ID=
-KAKAO_CLIENT_SECRET=
-NAVER_CLIENT_ID=
-NAVER_CLIENT_SECRET=
-```
-
-### 3) AWS 배포
-
-AWS 자격 증명과 Terraform S3 backend를 설정하고, [배포 가이드](docs/deployment.md)에 따라 인프라 생성, 시크릿 업로드와 ECR 이미지 준비를 완료합니다. 이후 Bash/WSL 환경에서 업로드한 이미지 태그를 지정해 실행합니다.
-
-```bash
-export IMAGE_TAG="$(git rev-parse HEAD)"
-aws eks update-kubeconfig --name chatting_alarm-eks --region ap-northeast-2
-bash infra/kubernetes/apply.sh
-kubectl get pods,ingress -n chatting-alarm
-```
-
-Ingress의 `ADDRESS`를 DNS의 `app`, `api` CNAME 대상으로 등록합니다. Google·Kakao·Naver 개발자 콘솔에는 다음 Callback URL을 각각 등록합니다.
-
-```text
-https://api.chatting-alarm.p-e.kr/login/oauth2/code/google
-https://api.chatting-alarm.p-e.kr/login/oauth2/code/kakao
-https://api.chatting-alarm.p-e.kr/login/oauth2/code/naver
-```
-
-### 4) 서비스 실행
-
-배포 후 [서비스 접속 주소](https://app.chatting-alarm.p-e.kr)에 접속하고 Google, Kakao 또는 Naver로 로그인합니다.
-
-### 5) 변경 사항 배포
-
-코드 변경 후 `main`에 push하고 Jenkins 배포 작업에서 **Build Now**를 선택합니다.
-
-인프라, 환경 변수 또는 도메인이 바뀌면 Terraform, 시크릿과 DNS 설정도 별도로 갱신합니다.
+Prometheus로 백엔드 메트릭을 수집하고 Grafana에서 서버 자원과 API 상태를 확인합니다. 설치와 접속 방법은 [모니터링 가이드](docs/monitoring.md)를 참고하세요.
 
 ## Trouble Shooting
 
@@ -154,6 +111,14 @@ https://api.chatting-alarm.p-e.kr/login/oauth2/code/naver
 | &nbsp;문&#8288;제&nbsp; | 두 개의 `t3.small` 노드에서 배포를 진행할 때 새 Pod가 `Pending` 상태에 머물렀습니다. |
 | &nbsp;원&#8288;인&nbsp; | 기존 Pod와 새 Pod를 동시에 실행할 노드 자원이 부족했습니다. |
 | &nbsp;해&#8288;결&nbsp; | 노드를 `t3.medium`으로 변경하고, 프론트엔드의 RollingUpdate 전략을 `maxUnavailable: 1`, `maxSurge: 0`으로 설정했습니다. 기존 Pod 하나를 먼저 종료해 자원을 확보한 뒤 새 Pod를 배포하도록 했습니다. |
+
+### EBS CSI 드라이버 누락으로 모니터링 설치 중단
+
+| &nbsp;구&#8288;분&nbsp; | 내용 |
+|---|---|
+| &nbsp;문&#8288;제&nbsp; | Prometheus·Grafana 설치 중 `ebs.csi.aws.com not found` 오류로 설치 스크립트가 중단됐습니다. |
+| &nbsp;원&#8288;인&nbsp; | 모니터링 데이터를 EBS에 저장하도록 설정했지만, 볼륨 생성과 연결을 담당하는 EBS CSI 드라이버가 클러스터에 없었습니다. |
+| &nbsp;해&#8288;결&nbsp; | Terraform에 EBS CSI 추가 기능과 전용 IAM Role을 추가하고 IRSA로 권한을 연결했습니다. 드라이버가 정상 실행되는 것을 확인한 뒤 모니터링 설치를 다시 진행했습니다. |
 
 ## 배운 점
 - **Kubernetes 배포:** ALB와 Ingress를 활용한 요청 라우팅과 Pod 분산 배치 방법을 이해했습니다.

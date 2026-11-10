@@ -6,6 +6,9 @@ metadata:
   labels:
     app: chatting-alarm
   annotations:
+    # Prevent the public catch-all route from exposing application metrics.
+    alb.ingress.kubernetes.io/actions.block-metrics: >-
+      {"type":"fixed-response","fixedResponseConfig":{"contentType":"text/plain","statusCode":"403","messageBody":"Forbidden"}}
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/security-groups: ${ALB_SECURITY_GROUP_ID}
@@ -42,6 +45,14 @@ spec:
     - host: api.chatting-alarm.p-e.kr
       http:
         paths:
+          - path: /actuator/prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: block-metrics
+                port:
+                  name: use-annotation
+
           - path: /ws
             pathType: Prefix
             backend:

@@ -23,7 +23,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/oauth2/**", "/login/**", "/ws/**", "/auth/me", "/actuator/health/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/**", "/ws/**", "/auth/me", "/actuator/health/**", "/actuator/prometheus").permitAll()
                         .anyRequest().permitAll())
                 .oauth2Login(oauth -> oauth
                         .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))

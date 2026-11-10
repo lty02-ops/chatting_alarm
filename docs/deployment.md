@@ -1,6 +1,10 @@
 # AWS 배포 가이드
 
-Bash/WSL에서 AWS CLI, Terraform 1.10 이상, kubectl, Docker, Python 3, `envsubst`가 필요합니다. AWS 자격 증명과 인프라 생성·ECR 업로드·EKS 접근 권한을 준비하고, 아래 명령은 저장소 루트에서 실행합니다.
+아래 명령은 저장소 루트의 Bash/WSL에서 실행합니다. AWS CLI, Terraform 1.10 이상, 클러스터 버전에 맞는 kubectl, Docker, Python 3, `envsubst`가 필요합니다. Docker daemon도 실행되어 있어야 합니다. 모니터링에는 Helm 3를 추가로 사용합니다.
+
+기본 설정은 서울 리전(`ap-northeast-2`), `dev` 환경, `chatting_alarm-eks` 클러스터입니다. 시크릿 업로드 스크립트와 Jenkins 설정도 이 값을 사용합니다. 리전·환경·도메인을 바꾸면 관련 스크립트와 Kubernetes 설정도 함께 변경해야 합니다.
+
+최초 배포는 1~5단계, 기존 앱의 코드 변경은 6단계를 따릅니다. 전체 인프라를 삭제한 뒤 다시 배포한다면 [삭제 후 재배포](#삭제-후-재배포)를 먼저 확인합니다. 배포 시 AWS 비용이 발생합니다.
 
 ### 1) Repository Clone
 
@@ -28,7 +32,38 @@ NAVER_CLIENT_SECRET=
 
 ### 3) AWS 인프라 생성
 
-`infra/aws/terraform.tfvars.example`을 참고해 `terraform.tfvars`를 작성하고, `backend.tf`의 S3 상태 저장 버킷을 준비합니다. 기존 인프라를 갱신할 때는 기존 설정과 state를 사용합니다.
+먼저 AWS 계정과 Docker 연결을 확인합니다. 여러 AWS 프로필을 사용한다면 `AWS_PROFILE`을 지정한 뒤 같은 세션에서 진행합니다.
+
+```bash
+aws sts get-caller-identity
+aws configure list
+docker info
+```
+
+처음 설정할 때만 예제를 복사하고 `bucket_suffix` 등을 수정합니다. 기존 `terraform.tfvars`가 있다면 그대로 사용합니다.
+
+```bash
+cp infra/aws/terraform.tfvars.example infra/aws/terraform.tfvars
+```
+
+`infra/aws/backend.tf`에 지정한 상태 저장 버킷은 Terraform 초기화 전에 있어야 합니다. 기존 버킷과 state가 있으면 재사용합니다. 조회되지 않으면 계정과 권한부터 확인합니다. 기존 state를 빈 버킷으로 대체하지 않습니다.
+
+```bash
+aws s3api head-bucket --bucket chatting-alarm-terraform-state-lty02
+```
+
+새 환경에서 버킷이 없는 경우에만 생성합니다. 다른 계정에서 배포한다면 고유한 이름을 정하고 `backend.tf`에도 반영합니다.
+
+```bash
+aws s3api create-bucket \
+  --bucket chatting-alarm-terraform-state-lty02 \
+  --region ap-northeast-2 \
+  --create-bucket-configuration LocationConstraint=ap-northeast-2
+
+aws s3api put-bucket-versioning \
+  --bucket chatting-alarm-terraform-state-lty02 \
+  --versioning-configuration Status=Enabled
+```
 
 Jenkins 배포 시 아래 [Jenkins 설정](#jenkins-설정)에 따라 에이전트의 AWS 인증과 권한을 준비합니다. GitHub Actions를 사용하지 않는 신규 환경에서는 `github_repository = null`로 설정합니다.
 
@@ -39,11 +74,21 @@ terraform -chdir=infra/aws apply
 terraform -chdir=infra/aws output acm_dns_validation_records
 ```
 
-출력된 인증서 검증용 CNAME을 DNS에 등록하고 ACM 상태가 `ISSUED`인지 확인합니다. Terraform은 AWS 인프라만 생성하며 앱은 다음 단계에서 배포합니다.
+출력된 인증서 검증용 CNAME을 DNS에 등록하고 발급 상태를 확인합니다. 기존 검증 레코드가 남아 있다면 출력값과 일치하는지 확인합니다.
+
+```bash
+CERTIFICATE_ARN="$(terraform -chdir=infra/aws output -raw acm_certificate_arn)"
+aws acm describe-certificate \
+  --certificate-arn "$CERTIFICATE_ARN" \
+  --region ap-northeast-2 \
+  --query Certificate.Status --output text
+```
+
+`ISSUED`가 된 뒤 진행합니다. `apply.sh`는 인증서가 미발급 상태이면 중단됩니다. Terraform은 EKS, RDS, Redis, ECR, EBS CSI 드라이버 등을 생성하며 앱은 다음 단계에서 배포합니다.
 
 ### 4) 시크릿 업로드 및 이미지 빌드
 
-작성한 `.env`를 AWS Secrets Manager에 업로드합니다. EKS는 `.env`를 직접 읽지 않습니다.
+작성한 `.env`를 AWS Secrets Manager에 업로드합니다. 여섯 개의 OAuth 값이 모두 있어야 합니다. EKS는 `.env`를 직접 읽지 않습니다.
 
 ```bash
 python3 infra/aws/upload-backend-env.py
@@ -65,10 +110,11 @@ docker push "$FRONTEND_REPO:$IMAGE_TAG"
 
 ### 5) Kubernetes 배포 및 서비스 접속
 
-이미지를 업로드한 Bash/WSL 세션에서 배포 스크립트를 실행합니다. `IMAGE_TAG`는 앞 단계에서 업로드한 이미지 태그를 사용합니다.
+이미지를 업로드한 Bash/WSL 세션에서 배포 스크립트를 실행합니다. 새 세션에서는 ECR에 업로드한 `IMAGE_TAG`를 다시 지정합니다. 커밋 SHA를 지정하는 것만으로 이미지가 만들어지지는 않습니다.
 
 ```bash
 aws eks update-kubeconfig --name chatting_alarm-eks --region ap-northeast-2
+: "${IMAGE_TAG:?업로드한 이미지 태그를 지정하세요}"
 IMAGE_TAG="$IMAGE_TAG" bash infra/kubernetes/apply.sh
 kubectl get pods,ingress -n chatting-alarm
 ```
@@ -84,6 +130,10 @@ https://api.chatting-alarm.p-e.kr/login/oauth2/code/naver
 ```
 
 배포 후 **https://app.chatting-alarm.p-e.kr**에 접속하고 Google, Kakao 또는 Naver로 로그인합니다. 다른 도메인을 사용한다면 인프라 설정, 프론트엔드 이미지의 API 주소와 Callback URL도 해당 도메인으로 변경합니다.
+
+### 모니터링 설치
+
+앱 배포와 DNS 연결을 마쳤다면 [모니터링 가이드](monitoring.md)에 따라 Prometheus와 Grafana를 설치합니다. 앱의 `apply.sh`는 모니터링을 설치하지 않습니다. `grafana` DNS에는 앱 ALB가 아닌 Grafana Ingress 주소를 등록합니다.
 
 ### 6) 변경 사항 배포
 
@@ -175,7 +225,7 @@ Jenkins에 이름과 라벨 `chatting-alarm-deploy`, Remote root directory `/hom
 
 배포 작업은 체크아웃한 커밋이 `origin/main`인지 확인하고 테스트·프론트 빌드를 재검증합니다. 커밋 SHA 태그로 이미지를 업로드하고 두 Deployment를 갱신한 뒤 각각 최대 5분 동안 rollout을 확인합니다. 동시 배포는 직렬화하며 임시 Docker 인증 파일과 kubeconfig는 종료 시 삭제합니다.
 
-Jenkins 배포 확인 후 `github_repository = null`로 변경하고 Terraform plan에서 이전 GitHub OIDC Role/Provider/access entry 삭제를 검토한 뒤 적용합니다. 기존 `github-oidc.tf`의 로컬 수정은 보존했습니다. GitHub Actions 변수 `AWS_DEPLOY_ROLE_ARN` 등 사용하지 않는 배포 인증 설정도 정리합니다.
+기존 GitHub Actions 배포에서 전환한 경우, Jenkins 배포 확인 후 `github_repository = null`로 변경합니다. Terraform plan에서 이전 GitHub OIDC Role/Provider/access entry 삭제를 확인한 뒤 적용하고 사용하지 않는 GitHub Actions 인증 설정을 정리합니다.
 
 한쪽 Deployment만 갱신된 상태에서 실패할 수 있으며 자동 롤백하지 않습니다. 실패하면 양쪽 상태를 확인하고 필요 시 이전 정상 SHA로 각각 `kubectl set image`한 뒤 rollout을 확인합니다.
 
@@ -195,3 +245,36 @@ kubectl get pods -n chatting-alarm -o wide
 kubectl get events -n chatting-alarm --sort-by=.metadata.creationTimestamp | tail -30
 kubectl logs -n chatting-alarm -l app=chatting-alarm-backend -c backend --tail=100
 ```
+
+## 삭제 후 재배포
+
+상태 저장 버킷과 기존 Terraform 설정은 유지합니다. 인프라를 삭제했다면 3단계부터 다시 생성하고, `.env` 업로드와 이미지 빌드·업로드도 다시 진행합니다. 앱과 Grafana ALB 주소가 바뀌므로 DNS 대상도 갱신합니다. 삭제된 DB·파일·대시보드 데이터는 이 과정으로 복구되지 않습니다.
+
+### 시크릿 이름이 삭제 대기 중인 경우
+
+백엔드 시크릿은 삭제 시 7일간 복구 기간을 둡니다. 이 기간에 같은 이름으로 생성하면 충돌할 수 있습니다. 인프라 생성 전에 확인합니다.
+
+```bash
+aws secretsmanager describe-secret \
+  --secret-id chatting-alarm/dev/backend \
+  --region ap-northeast-2 \
+  --query '{ARN:ARN,DeletedDate:DeletedDate}'
+```
+
+`ResourceNotFoundException`이면 새로 생성할 수 있습니다. `DeletedDate`가 있으면 삭제 예약을 취소합니다. Terraform 초기화와 변수 설정 후, state에 해당 리소스가 없는 경우에만 import합니다.
+
+```bash
+aws secretsmanager restore-secret \
+  --secret-id chatting-alarm/dev/backend \
+  --region ap-northeast-2
+
+SECRET_ARN="$(aws secretsmanager describe-secret \
+  --secret-id chatting-alarm/dev/backend \
+  --region ap-northeast-2 --query ARN --output text)"
+
+terraform -chdir=infra/aws state list
+# 위 목록에 aws_secretsmanager_secret.backend가 없을 때만 실행
+terraform -chdir=infra/aws import aws_secretsmanager_secret.backend "$SECRET_ARN"
+```
+
+이후 `terraform plan`을 확인하고 배포를 이어갑니다. 복구한 시크릿도 4단계에서 현재 `.env` 값으로 다시 업로드합니다. 삭제 예약 취소는 [AWS restore-secret 문서](https://docs.aws.amazon.com/cli/latest/reference/secretsmanager/restore-secret.html)를 참고하세요.

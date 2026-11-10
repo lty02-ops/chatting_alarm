@@ -1,0 +1,76 @@
+# kube-prometheus-stack 93.1.0; Grafana HTTPS is configured by grafana-ingress.yaml.
+alertmanager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+prometheus:
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  prometheusSpec:
+    retention: 7d
+    retentionSize: 15GB
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector:
+      matchLabels:
+        release: monitoring
+    serviceMonitorNamespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+            - monitoring
+            - chatting-alarm
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: monitoring-gp3
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 20Gi
+grafana:
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  # The chart generates an admin password in a Kubernetes Secret on first install.
+  grafana.ini:
+    server:
+      domain: grafana.chatting-alarm.p-e.kr
+      root_url: https://grafana.chatting-alarm.p-e.kr
+    security:
+      cookie_secure: true
+      cookie_samesite: lax
+    auth.anonymous:
+      enabled: false
+    users:
+      allow_sign_up: false
+  persistence:
+    enabled: true
+    storageClassName: monitoring-gp3
+    accessModes: [ReadWriteOnce]
+    size: 5Gi
+  deploymentStrategy:
+    type: Recreate
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  # The stack provisions its Prometheus data source and Kubernetes dashboards.
+  defaultDashboardsEnabled: true

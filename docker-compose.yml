@@ -4,7 +4,7 @@ services:
     container_name: mysql_container
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-      MYSQL_DATABASE: chatting-alarm
+      MYSQL_DATABASE: chatting_alarm
       MYSQL_USER: chat_user
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-local-chat-password}
     ports:
@@ -45,7 +45,7 @@ services:
       mysql:
         condition: service_healthy
 
-    
+
   frontend:
     build:
       context: ./frontend
@@ -58,7 +58,20 @@ services:
     depends_on:
       - backend
 
+  prometheus:
+    # 기존 image, 설정 파일 마운트 등 유지
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    # 기존 image 등 유지
+    volumes:
+      - grafana_data:/var/lib/grafana
+
 volumes:
   mysql_data:
   profile_images:
   chat_attachments:
+  prometheus_data:
+  grafana_data:
