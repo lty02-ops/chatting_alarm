@@ -12,3 +12,4 @@ backend-secrets.json
 *.tfstate.*
 *.tfplan
 terraform.tfvars
+/deployment-info.json
