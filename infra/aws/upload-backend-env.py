@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Upload OAuth keys from the repository .env without printing secret values."""
+import argparse
 import json
 import os
 import shlex
@@ -9,6 +10,9 @@ from pathlib import Path
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--validate-only", action="store_true")
+    args = parser.parse_args()
     env_file = Path(__file__).resolve().parents[2] / ".env"
     keys = (
         "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
@@ -34,6 +38,9 @@ def main():
     missing = [key for key in keys if not values.get(key)]
     if missing:
         raise SystemExit("Missing keys (no values uploaded): " + ", ".join(missing))
+    if args.validate_only:
+        print("OAuth configuration is valid; no values uploaded.")
+        return
     # AWS CLI expects a regular JSON file. Restrict access and delete it afterward.
     with tempfile.TemporaryDirectory(prefix="chatting-alarm-secret-") as directory:
         payload = Path(directory) / "payload.json"
