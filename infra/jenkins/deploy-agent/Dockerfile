@@ -1,10 +1,14 @@
 FROM amazon/aws-cli:latest AS aws_cli
 FROM docker:cli AS docker_cli
+FROM hashicorp/terraform:1.10.5 AS terraform_cli
 
 # Build the CI agent image locally before building this image.
 FROM chatting-alarm-ci-agent:local
 
 USER root
+
+COPY --from=terraform_cli /bin/terraform /usr/local/bin/terraform
+RUN apt-get update && apt-get install -y --no-install-recommends python3 gettext-base && rm -rf /var/lib/apt/lists/*
 
 COPY --from=aws_cli /usr/local/aws-cli /usr/local/aws-cli
 COPY --from=docker_cli /usr/local/bin/docker /usr/local/bin/docker
@@ -30,4 +34,4 @@ ENV AWS_PAGER=""
 
 USER jenkins
 
-RUN aws --version && docker --version && kubectl version --client
+RUN aws --version && docker --version && kubectl version --client && terraform version && python3 --version && envsubst --version
