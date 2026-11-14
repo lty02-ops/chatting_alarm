@@ -90,11 +90,11 @@ ALB는 Target Group에 등록된 두 개의 React Pod 중 정상인 Pod 하나�
 
 **API 요청 / 전달**
 
-브라우저가 `api.chatting-alarm.p-e.kr`로 REST API를 요청하면 외부 DNS를 통해 ALB의 IP 주소를 확인하고 ALB로 HTTPS 요청을 보냅니다. 이후 ACM 인증서를 사용해 TLS 연결을 종료한 뒤에 Ingress 설정으로 만든 호스트 라우팅 규칙에 따라 Backend Target Group을 선택하고 등록된 두 개의 Spring Boot Pod 중 정상안 Pod 하나로 요청을 전달합니다. 
+브라우저가 `api.chatting-alarm.p-e.kr`로 REST API를 요청하면 외부 DNS를 통해 ALB의 IP 주소를 확인하고 ALB로 HTTPS 요청을 보냅니다. 이후 ACM 인증서를 사용해 TLS 연결을 종료한 뒤에 Ingress 설정으로 만든 호스트 라우팅 규칙에 따라 Backend Target Group을 선택하고 등록된 두 개의 Spring Boot Pod 중 정상인 Pod 하나로 요청을 전달합니다.
 
 **데이터 처리 / 저장**
 
-Redis는 이용해 실시간 알림과 메세지를 전달하는데 사용하고 사용자, 친구, 채팅방, 메세지 등의 데이터는 RDS MySQL에 저장합니다.
+Redis는 실시간 알림과 메세지를 전달하는데 사용하고 사용자, 친구, 채팅방, 메세지 등의 데이터는 RDS MySQL에 저장합니다.
 
 ### 백엔드 WebSocket 요청 흐름
 
@@ -127,26 +127,32 @@ cp -n infra/aws/terraform.tfvars.example infra/aws/terraform.tfvars
 
 `.env`에 Google, Kakao, Naver OAuth 값과 Jenkins URL·사용자명·API 토큰을 입력하고 AWS 인증과 배포 설정을 준비합니다.
 
-최초 실행 전 Jenkins에 `chatting-alarm-deploy` 노드를 생성하고 WSL에서 에이전트를 실행해 연결합니다.
+최초 실행 전 Jenkins 노드의 Labels에 `chatting-alarm-deploy`를 지정하고 WSL에서 에이전트를 연결합니다. 에이전트는 Java 21로 실행하고 작업 경로는 `/home/사용자명/jenkins-agent`로 설정합니다.
 
 ### 3. 배포
 
 ```bash
 bash infra/scripts/setup.sh
+```
+AWS 환경을 배포하여 리소스를 구성합니다.
+`setup.sh` 실행 후에 출력된 DNS를 등록합니다.
+인증서가 발급되면 `deploy-dev.sh`를 실행해 Jenkins에서 `main` 코드를 배포합니다.
+
+```bash
 bash infra/scripts/deploy-dev.sh
 ```
-
-`setup.sh` 실행 후에 출력된 DNS를 등록합니다. 인증서가 발급되면 `deploy-dev.sh`를 실행해 Jenkins에서 `main` 코드를 배포합니다.
 
 모니터링이 필요한 경우에는 다음 명령어를 실행합니다.
 
 ``` bash
 bash infra/scripts/monitoring.sh
 ```
+접속을 허용할 공인 IP를 `공인IP/32` 형식으로 입력합니다.
+완료 후 출력되는 Grafana 전용 ALB 주소를 DNS의 `grafana` CNAME에 등록합니다.
 
 ### 4. 접속
 
-최초 배포 후 `deployment-info.json`을 확인해 DNS CNAME과 Google, Kakao, Naver 리다이렉트 URL을 등록합니다. Grafana 접속 정보는 모니터링 설치 시에 출력됩니다
+최초 배포 후 `deployment-info.json`을 확인해 DNS CNAME과 Google, Kakao, Naver 리다이렉트 URL을 등록합니다. Grafana 접속 정보는 모니터링 설치 시에 출력됩니다.
 
 이후 [https://app.chatting-alarm.p-e.kr](https://app.chatting-alarm.p-e.kr)에 접속합니다.
 
