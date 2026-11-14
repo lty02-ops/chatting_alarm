@@ -34,6 +34,7 @@
 ![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white)
 ![Jenkins](https://img.shields.io/badge/Jenkins-D24939?style=flat-square&logo=jenkins&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white)
+![Bash](https://img.shields.io/badge/Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)
 
 ### Monitoring
 ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)
@@ -42,23 +43,30 @@
 
 ## 아키텍처
 
-### 전체 구성
+### 전체 아키텍쳐
 
 ![모두톡 AWS 아키텍처](image/Chatting_alarm_overall.png)
 
-외부 DNS에 프론트엔드, 백엔드, Grafana 도메인을 각각 등록하고, 앱 ALB는 Ingress의 규칙에 따라 프론트엔드와 백엔드 Pod로 요청을 전달합니다. Grafana는 별도 ALB를 통해 지정한 관리자 IP에서만 접근이 가능하도록 구성했습니다.
+**서비스 접근 / 트래픽 라우팅**
 
-프론트엔드와 백엔드는 각각 2개의 Pod로 배포했고, 가용영역 간 분산 배치를 위해 Topology Spread Constraints를 적용했습니다. 노드 유지보수 시에는 동시에 두 Pod가 중단되지 않도록 PodDisruptionBudget을 설정했습니다.
+외부 DNS에 프론트엔드, 백엔드, Grafana 도메인을 각각 등록하고 앱 ALB는 Ingress의 규칙에 따라 프론트엔드와 백엔드 Pod로 요청을 전달합니다. Grafana는 별도 ALB를 통해 지정한 관리자 IP에서만 접근이 가능하도록 구성했습니다.
 
-Prometheus로 백엔드와 Kubernetes 메트릭을 수집하고 Grafana에서 이를 시각화합니다. 모니터링 데이터는 EBS에 저장하고 CloudWatch는 로그 수집과 AWS 리소스 경보에 사용합니다.
+**Pod 배치 / 가용성**
 
-### CI/CD
+프론트엔드와 백엔드는 각각 2개의 Pod로 배포했고 하나의 가용영역에 집중되지 않도록 분산 배치했습니다. 노드는 유지보수 중에 서비스가 계속 실행될 수 있게 각 서비스의 Pod를 최소 1개씩은 유지할 수 있도록 설정했습니다.
+
+
+**모니터링 / 로그 수집**
+
+Prometheus로 백엔드와 Kubernetes 메트릭을 수집하고 Grafana에서 이를 시각화합니다. 모니터링 데이터는 EBS에 저장하고 CloudWatch는 로그 수집과 AWS 리소스 경보 알림에 사용합니다.
+
+### CI / CD
 
 ![모두톡 CI/CD Pipeline](image/Chatting_alarm_cicd.png)
 
 **CI** - `main` 브랜치에 새 코드가 push되거나 Pull Request가 생성되면 Jenkins에서 백엔드 테스트와 프론트엔드 빌드를 실행합니다.
 
-**CD** - 배포는 Jenkins에서 수동으로 실행합니다. AWS 인증 후 새로운 코드를 Docker 이미지로 빌드해서 ECR에 업로드하고 `kubectl set image`로 EKS Deployment의 컨테이너 이미지 주소를 변경합니다.
+**CD** - `deploy-dev.sh`가 Jenkins 배포 작업을 실행합니다. AWS 인증 후 새로운 코드를 Docker 이미지로 빌드해서 ECR에 업로드하고 Kubernetes 설정에 새 이미지 태그를 적용해 EKS에 배포합니다.
 마지막으로 Kubernetes는 이 변경 사항을 감지하여 RollingUpdate 방식으로 새 Pod을 배포합니다.
 
 
@@ -66,29 +74,90 @@ Prometheus로 백엔드와 Kubernetes 메트릭을 수집하고 Grafana에서 �
 
 ![모두톡 Frontend Flow](image/Chatting_alarm_Frontend_Flow.png)
 
-사용자가 app.chatting-alarm.p-e.kr에 접속하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB로 HTTPS 요청을 보냅니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 라우팅 규칙에 따라 Frontend Target Group을 선택합니다. 이후 등록된 두 개의 React Pod 중 정상 상태인 Pod 중 하나로 요청을 전달합니다.
+
+**접속 / 요청 전달**
+
+사용자가 app.chatting-alarm.p-e.kr에 접속하면 외부 DNS를 통해 ALB의 IP 주소를 확인하고 HTTPS 요청을 보냅니다.
+ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤에 Ingress 설정으로 만든 호스트 라우팅 규칙에 따라 Frontend Target Group으로 요청을 전달합니다.
+
+**프론트엔드 응답**
+
+ALB는 Target Group에 등록된 두 개의 React Pod 중 정상인 Pod 하나로 요청을 전달합니다.
 
 ### 백엔드 REST API 요청 흐름
 
 ![모두톡 Backend REST API Flow](image/Chatting_alarm_Backend_REST_API_Flow.png)
 
-사용자가 `api.chatting-alarm.p-e.kr`로 REST API를 요청하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB로 HTTPS 요청을 보냅니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 라우팅 규칙에 따라 Backend Target Group을 선택합니다. 이후 등록된 두 개의 Spring Boot Pod 중 정상 상태인 Pod 하나로 요청을 전달합니다. 애플리케이션은 Redis를 이용해 실시간 이벤트를 전달하고 사용자·친구·채팅방·메세지 등의 데이터는 RDS MySQL에 저장합니다.
+**API 요청 / 전달**
+
+브라우저가 `api.chatting-alarm.p-e.kr`로 REST API를 요청하면 외부 DNS를 통해 ALB의 IP 주소를 확인하고 ALB로 HTTPS 요청을 보냅니다. 이후 ACM 인증서를 사용해 TLS 연결을 종료한 뒤에 Ingress 설정으로 만든 호스트 라우팅 규칙에 따라 Backend Target Group을 선택하고 등록된 두 개의 Spring Boot Pod 중 정상안 Pod 하나로 요청을 전달합니다. 
+
+**데이터 처리 / 저장**
+
+Redis는 이용해 실시간 알림과 메세지를 전달하는데 사용하고 사용자, 친구, 채팅방, 메세지 등의 데이터는 RDS MySQL에 저장합니다.
 
 ### 백엔드 WebSocket 요청 흐름
 
 ![모두톡 Backend WebSocket Flow](image/Chatting_alarm_Backend_WebSocket_Flow.png)
 
-브라우저가 api.chatting-alarm.p-e.kr/ws로 WSS 연결을 요청하면 외부 DNS를 통해 ALB의 IP 주소를 조회하고 ALB에 연결합니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤, Ingress 설정으로 만든 호스트 및 경로 라우팅 규칙에 따라 Backend Target Group을 선택합니다. 이후 등록된 Spring Boot Pod 중 정상 상태인 Pod 하나로 연결을 전달합니다. 각 Pod는 Redis Pub/Sub을 이용해 채팅 메세지를 공유하고 접속 상태는 Redis에서 관리하며 채팅 메세지는 RDS MySQL에 저장합니다.
 
-## 배포 방법
+**실시간 연결**
 
-Terraform으로 AWS 인프라를 구성하고, Docker 이미지를 ECR에 올린 뒤 EKS에 배포합니다. 최초 배포는 `infra/kubernetes/apply.sh`로 진행하며, 이후 코드 변경은 Jenkins 배포 작업에서 수동으로 반영합니다.
+브라우저가 api.chatting-alarm.p-e.kr/ws로 WSS 연결을 요청하면 외부 DNS를 통해 ALB의 IP 주소를 확인하고 ALB에 연결합니다. ALB는 ACM 인증서를 사용해 TLS 연결을 종료한 뒤에 Ingress 설정으로 만든 호스트 및 경로 라우팅 규칙에 따라 Backend Target Group을 선택하고 등록된 Spring Boot Pod 중 정상 Pod 하나로 연결을 전달합니다.
 
-환경 설정과 배포 명령은 [AWS 배포 가이드](docs/deployment.md)에 정리했습니다. 현재는 운영 비용을 줄이기 위해 배포를 중단한 상태입니다.
+**메세지 공유 / 저장**
 
-## 모니터링
+각 Pod는 Redis Pub/Sub을 이용해 채팅 메세지를 공유하고 접속 상태는 Redis에서 관리하며 채팅 메세지는 RDS MySQL에 저장합니다.
 
-Prometheus로 백엔드 메트릭을 수집하고 Grafana에서 서버 자원과 API 상태를 확인합니다. 설치와 접속 방법은 [모니터링 가이드](docs/monitoring.md)를 참고하세요.
+## 배포 및 실행 방법
+
+### 1. Repository Clone
+
+```bash
+git clone https://github.com/lty02-ops/chatting_alarm.git
+cd chatting_alarm
+```
+
+### 2. 환경 설정
+
+```bash
+cp -n .env.example .env
+cp -n infra/aws/terraform.tfvars.example infra/aws/terraform.tfvars
+```
+
+`.env`에 Google, Kakao, Naver OAuth 값과 Jenkins URL·사용자명·API 토큰을 입력하고 AWS 인증과 배포 설정을 준비합니다.
+
+최초 실행 전 Jenkins에 `chatting-alarm-deploy` 노드를 생성하고 WSL에서 에이전트를 실행해 연결합니다.
+
+### 3. 배포
+
+```bash
+bash infra/scripts/setup.sh
+bash infra/scripts/deploy-dev.sh
+```
+
+`setup.sh` 실행 후에 출력된 DNS를 등록합니다. 인증서가 발급되면 `deploy-dev.sh`를 실행해 Jenkins에서 `main` 코드를 배포합니다.
+
+모니터링이 필요한 경우에는 다음 명령어를 실행합니다.
+
+``` bash
+bash infra/scripts/monitoring.sh
+```
+
+### 4. 접속
+
+최초 배포 후 `deployment-info.json`을 확인해 DNS CNAME과 Google, Kakao, Naver 리다이렉트 URL을 등록합니다. Grafana 접속 정보는 모니터링 설치 시에 출력됩니다
+
+이후 [https://app.chatting-alarm.p-e.kr](https://app.chatting-alarm.p-e.kr)에 접속합니다.
+
+
+### 5. 리소스 삭제
+
+```bash
+bash infra/scripts/destroy.sh
+```
+
+실행 중인 Jenkins 배포를 중단한 뒤 프로젝트 루트에서 실행합니다. 애플리케이션과 모니터링 데이터는 삭제되며 state 저장용 S3 버킷은 유지됩니다.
 
 ## Trouble Shooting
 
